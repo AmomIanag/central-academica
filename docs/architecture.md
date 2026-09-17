@@ -45,9 +45,9 @@ Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, 
 - `POST /auth/login` validado com Zod (e-mail válido, senha presente).
 - Sem JWT, NextAuth, Passport ou Redis na V1.
 
-Código de auth em `apps/api/src/modules/auth/`. Middleware compartilhado `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
+Código de auth em `apps/api/src/modules/auth/`. API acadêmica em `modules/dashboard` e `modules/disciplines`. Média/status em `modules/academic/grades.ts`. Middleware `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
 
-Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. `GET /health` permanece público.
+Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`. `GET /health` permanece público.
 
 `users.email` é `TEXT`, normalizado para lowercase antes de persistir e no login, com `UNIQUE`. Não usar a extensão `CITEXT`.
 
@@ -75,17 +75,18 @@ Aluno de seed: `aluno@central.local` / senha local `dev-aluno-123` (hash `scrypt
 
 O seed cobre disciplinas com todas as notas (média futura ≥ 6 e < 6), notas parciais e avaliações sem nota.
 
-## Média e situação (service, Etapa 5)
+## Média e situação
 
-Derivadas, não persistidas:
+Derivadas no service (`apps/api/src/modules/academic/grades.ts`), não persistidas. Corte V1: `PASSING_AVERAGE = 6.0`.
 
 - média parcial: `sum(score * weight) / sum(weight das avaliações com nota)`
-- `em_andamento` se faltar nota
-- `aprovado` se todas as notas lançadas e média ≥ 6.0
-- `reprovado` se todas as notas lançadas e média < 6.0
+- sem notas ou sem avaliações: `average = null`, `status = em_andamento`
+- falta alguma nota: `em_andamento`
+- todas lançadas e média ≥ 6.0: `aprovado`; média < 6.0: `reprovado`
 - V1 ignora exame/substitutiva
+- resposta HTTP arredonda `average`/`overallAverage` em 2 casas; `weight` e `score` saem como `number`
 
-Centralizar essa regra em um único módulo, fácil de alterar.
+V1 lê só o termo `is_current = true`. Sem período atual: lista vazia, dashboard com `term: null` e totais zerados, detalhe `NOT_FOUND`.
 
 ## Contrato HTTP
 
@@ -119,8 +120,8 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 1. Planejamento e arquitetura
 2. Setup do projeto
 3. Banco de dados e modelo acadêmico (`node-pg-migrate`, schema, seed)
-4. Autenticação e segurança + testes mínimos das regras críticas de auth — atual
-5. API acadêmica + testes das regras de média e situação
+4. Autenticação e segurança + testes mínimos das regras críticas de auth
+5. API acadêmica + testes das regras de média e situação — atual
 6. Frontend e identidade visual, já contra a API real
 7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo)
 8. Polimento, revisão e suíte final de testes

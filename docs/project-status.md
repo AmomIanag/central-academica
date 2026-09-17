@@ -1,6 +1,6 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. Estado real após a Etapa 4.  
+Handoff operacional. Estado real após a Etapa 5.  
 Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
 
 ## Objetivo
@@ -19,7 +19,8 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 
 - O frontend **não** acessa o PostgreSQL.
 - Express é a única camada de negócio e o único acesso ao banco.
-- Auth HTTP implementada (`POST /auth/login`, `POST /auth/logout`, `GET /auth/me`). Contrato acadêmico ainda não.
+- Auth HTTP: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`.
+- API acadêmica autenticada: `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`.
 - `GET /health` permanece público: `{ "status", "database" }`.
 
 ## Infraestrutura local
@@ -43,8 +44,8 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | 2. Setup | Concluída e validada |
 | 3. Banco e modelo acadêmico | Concluída e validada |
 | 4. Autenticação e segurança | **Concluída** |
-| 5. API acadêmica | **Próxima** |
-| 6. Frontend e identidade visual | Não iniciada |
+| 5. API acadêmica | **Concluída** |
+| 6. Frontend e identidade visual | **Próxima** |
 | 7. Integração ponta a ponta | Não iniciada |
 | 8. Polimento e suíte final | Não iniciada |
 
@@ -69,13 +70,22 @@ Testes de auth (Vitest + Supertest) usam o Postgres em `5433` e o aluno de seed.
 - Aluno autenticado acessa só os próprios dados (regra de service na API acadêmica).
 - Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta), rate limiting.
 
-## Etapa 5 — API acadêmica (a implementar)
+## Estado da Etapa 5
 
-- Endpoints `/me/dashboard`, `/me/disciplines` (lista e detalhe)
-- Média e situação derivadas no service
-- `requireAuth` já disponível; escopo = usuário da sessão
+Leitura autenticada do período `is_current`. Escopo sempre `req.session.userId`. Disciplina inexistente ou de outro aluno → o mesmo `NOT_FOUND`.
 
-**Não antecipar na Etapa 5:** dashboard/notas/UI final (Etapa 6), Redis, ORM, módulos fora da V1.
+Média/status em `apps/api/src/modules/academic/grades.ts` (corte `PASSING_AVERAGE = 6.0`). NUMERIC do Postgres convertido para `number`; médias arredondadas a 2 casas só na resposta.
+
+Organização: `modules/dashboard` e `modules/disciplines` (routes / controller / service / repository). Sem migration nova.
+
+Testes de média (unidade) e HTTP (seed + isolamento temporário). Script: `npm test`.
+
+## Etapa 6 — frontend (a implementar)
+
+- Layouts `(auth)` e `(app)`, login, dashboard e notas contra a API real
+- Sem mocks descartáveis
+
+**Não antecipar na Etapa 6:** admin, Redis, ORM, módulos fora da V1.
 
 ## Git
 

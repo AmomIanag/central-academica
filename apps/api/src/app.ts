@@ -6,6 +6,8 @@ import { env } from "./config/env";
 import { pool } from "./db/pool";
 import { sendError } from "./http/response";
 import { authRouter } from "./modules/auth/routes";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
+import { disciplinesRouter } from "./modules/disciplines/disciplines.routes";
 import { sessionMiddleware } from "./modules/auth/session";
 
 export const app = express();
@@ -36,6 +38,8 @@ app.get("/health", async (_req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use("/me", dashboardRouter);
+app.use("/me", disciplinesRouter);
 
 app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {

@@ -2,7 +2,7 @@
 
 Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 será focada no módulo de notas.
 
-Este repositório está na **Etapa 4 (autenticação e segurança)**. A API acadêmica e a interface final ainda não foram implementadas.
+Este repositório está na **Etapa 5 (API acadêmica)**. A interface final ainda não foi implementada.
 
 ## Requisitos
 
@@ -143,6 +143,9 @@ Com a API e o PostgreSQL no ar, cookie httpOnly `central.sid`:
 - `POST /auth/login` — `{ "email", "password" }`
 - `POST /auth/logout`
 - `GET /auth/me` — exige sessão
+- `GET /me/dashboard` — período atual, média geral, resumo e próximas avaliações
+- `GET /me/disciplines` — disciplinas do período atual
+- `GET /me/disciplines/:id` — detalhe, avaliações e notas
 
 Sucesso: `{ "data": ... }`. Erro: `{ "error": { "code", "message", "details?" } }`.
 
@@ -152,4 +155,4 @@ Aluno de desenvolvimento (não é credencial real): `aluno@central.local` / `dev
 npm test
 ```
 
-Os testes de auth usam o Postgres do projeto em `localhost:5433` e não apagam dados acadêmicos.
+Os testes usam o Postgres do projeto em `localhost:5433`. Não apagam o seed acadêmico; dados temporários de isolamento são removidos ao final.
