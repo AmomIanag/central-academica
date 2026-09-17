@@ -2,7 +2,7 @@
 
 Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 será focada no módulo de notas.
 
-Este repositório está na **Etapa 5 (API acadêmica)**. A interface final ainda não foi implementada.
+Este repositório está na **Etapa 7 (integração e hardening)**. A V1 do aluno (login, dashboard e notas) consome a API real.
 
 ## Requisitos
 
@@ -115,7 +115,7 @@ npm run dev:web
 ```
 
 - API: [http://localhost:3001](http://localhost:3001)
-- Web: [http://localhost:3000](http://localhost:3000)
+- Web: [http://localhost:3000](http://localhost:3000) (`/login`, `/dashboard`, `/notas`)
 
 ## Healthcheck
 

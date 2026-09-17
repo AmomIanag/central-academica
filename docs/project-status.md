@@ -1,6 +1,6 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. Estado real após a Etapa 5.  
+Handoff operacional. Estado real após a Etapa 7.  
 Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
 
 ## Objetivo
@@ -45,8 +45,8 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | 3. Banco e modelo acadêmico | Concluída e validada |
 | 4. Autenticação e segurança | **Concluída** |
 | 5. API acadêmica | **Concluída** |
-| 6. Frontend e identidade visual | **Próxima** |
-| 7. Integração ponta a ponta | Não iniciada |
+| 6. Frontend e identidade visual | **Concluída** |
+| 7. Integração ponta a ponta | **Concluída** |
 | 8. Polimento e suíte final | Não iniciada |
 
 ## Estado da Etapa 4
@@ -80,12 +80,15 @@ Organização: `modules/dashboard` e `modules/disciplines` (routes / controller 
 
 Testes de média (unidade) e HTTP (seed + isolamento temporário). Script: `npm test`.
 
-## Etapa 6 — frontend (a implementar)
+## Estado da Etapa 6
 
-- Layouts `(auth)` e `(app)`, login, dashboard e notas contra a API real
-- Sem mocks descartáveis
+Layouts `(auth)` e `(app)`, login, dashboard, notas e detalhe contra a API real. Design dark-first FIAP, `lucide-react`, sem mocks.
 
-**Não antecipar na Etapa 6:** admin, Redis, ORM, módulos fora da V1.
+## Estado da Etapa 7
+
+Hardening da integração: cliente HTTP centralizado (`credentials: "include"`), 401/`UNAUTHENTICATED` único no cliente (sem JWT/RSC), estados de erro/vazio/loading, a11y básica (foco, labels, logout, menu). CORS/cookie da Etapa 4 permanecem.
+
+**Não antecipar na Etapa 8:** suíte final ampla, polimento visual extra, V2.
 
 ## Git
 

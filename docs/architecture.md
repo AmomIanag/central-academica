@@ -121,9 +121,9 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 2. Setup do projeto
 3. Banco de dados e modelo acadêmico (`node-pg-migrate`, schema, seed)
 4. Autenticação e segurança + testes mínimos das regras críticas de auth
-5. API acadêmica + testes das regras de média e situação — atual
+5. API acadêmica + testes das regras de média e situação
 6. Frontend e identidade visual, já contra a API real
-7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo)
+7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo) — atual
 8. Polimento, revisão e suíte final de testes
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.

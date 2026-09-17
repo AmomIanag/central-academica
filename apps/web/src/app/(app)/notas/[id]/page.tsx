@@ -12,9 +12,9 @@ import type { DisciplineDetail } from "@/lib/types";
 
 export default function DisciplinePage() {
   const params = useParams<{ id: string }>();
-  const id = params.id;
+  const id = typeof params.id === "string" ? params.id : null;
   const { data, error, errorCode, loading, reload } = useAcademicQuery<DisciplineDetail>(
-    `/me/disciplines/${id}`,
+    id ? `/me/disciplines/${id}` : null,
   );
 
   if (loading) {
@@ -68,7 +68,7 @@ export default function DisciplinePage() {
         <EmptyState title="Nenhuma avaliação lançada para esta disciplina." />
       ) : (
         <>
-          <div className="space-y-2 md:hidden">
+          <div className="space-y-2 lg:hidden">
             {data.assessments.map((assessment) => (
               <Card key={assessment.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -82,7 +82,7 @@ export default function DisciplinePage() {
             ))}
           </div>
 
-          <Card className="hidden overflow-hidden md:block">
+          <Card className="hidden overflow-hidden lg:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border text-xs text-muted">
                 <tr>
@@ -117,7 +117,7 @@ export default function DisciplinePage() {
 function BackLink() {
   return (
     <Link href="/notas" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
-      <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
+      <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
       Disciplinas
     </Link>
   );

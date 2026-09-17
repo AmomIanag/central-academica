@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import { api, ApiError, errorMessage, isUnauthenticated } from "@/lib/api";
 
-export function useAcademicQuery<T>(path: string) {
-  const router = useRouter();
+export function useAcademicQuery<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -19,9 +17,18 @@ export function useAcademicQuery<T>(path: string) {
   useEffect(() => {
     let cancelled = false;
 
+    if (!path) {
+      setData(null);
+      setError(null);
+      setErrorCode("NOT_FOUND");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setErrorCode(null);
+    setData(null);
 
     api<T>(path)
       .then((result) => {
@@ -37,8 +44,7 @@ export function useAcademicQuery<T>(path: string) {
           return;
         }
 
-        if (caught instanceof ApiError && caught.status === 401) {
-          router.replace("/login");
+        if (isUnauthenticated(caught)) {
           return;
         }
 
@@ -50,7 +56,7 @@ export function useAcademicQuery<T>(path: string) {
     return () => {
       cancelled = true;
     };
-  }, [path, reloadKey, router]);
+  }, [path, reloadKey]);
 
   return { data, error, errorCode, loading, reload };
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -11,7 +10,6 @@ import { formatAverage } from "@/lib/format";
 import type { DisciplineSummary } from "@/lib/types";
 
 export default function NotasPage() {
-  const router = useRouter();
   const { data, error, loading, reload } =
     useAcademicQuery<DisciplineSummary[]>("/me/disciplines");
 
@@ -38,9 +36,9 @@ export default function NotasPage() {
     <div className="mx-auto max-w-5xl">
       <p className="mb-4 text-sm text-muted">{data.length} disciplinas no período atual</p>
 
-      <div className="space-y-2 md:hidden">
+      <div className="space-y-2 lg:hidden">
         {data.map((discipline) => (
-          <Link key={discipline.id} href={`/notas/${discipline.id}`}>
+          <Link key={discipline.id} href={`/notas/${discipline.id}`} className="block">
             <Card className="px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -58,7 +56,7 @@ export default function NotasPage() {
         ))}
       </div>
 
-      <Card className="hidden overflow-hidden md:block">
+      <Card className="hidden overflow-hidden lg:block">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border text-xs text-muted">
             <tr>
@@ -74,21 +72,26 @@ export default function NotasPage() {
           </thead>
           <tbody className="divide-y divide-border">
             {data.map((discipline) => (
-              <tr
-                key={discipline.id}
-                className="cursor-pointer hover:bg-surface-hover"
-                onClick={() => router.push(`/notas/${discipline.id}`)}
-              >
+              <tr key={discipline.id} className="hover:bg-surface-hover">
                 <td className="px-4 py-2.5 font-medium tabular-nums">{discipline.code}</td>
-                <td className="px-4 py-2.5">{discipline.name}</td>
+                <td className="px-4 py-2.5">
+                  <Link href={`/notas/${discipline.id}`} className="hover:text-accent">
+                    {discipline.name}
+                  </Link>
+                </td>
                 <td className="px-4 py-2.5 text-muted">{discipline.professor.name}</td>
                 <td className="px-4 py-2.5 tabular-nums">{formatAverage(discipline.average)}</td>
                 <td className="px-4 py-2.5">
                   <StatusBadge status={discipline.status} />
                 </td>
                 <td className="px-4 py-2.5 text-right text-muted">
-                  <ChevronRight className="inline h-4 w-4" />
-                  <span className="sr-only">Abrir {discipline.name}</span>
+                  <Link
+                    href={`/notas/${discipline.id}`}
+                    aria-label={`Abrir ${discipline.name}`}
+                    className="inline-flex"
+                  >
+                    <ChevronRight className="h-4 w-4" aria-hidden />
+                  </Link>
                 </td>
               </tr>
             ))}

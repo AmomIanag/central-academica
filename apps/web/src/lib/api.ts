@@ -26,9 +26,46 @@ type DataBody<T> = {
   data: T;
 };
 
+type UnauthorizedListener = () => void;
+
+let unauthorizedListener: UnauthorizedListener | null = null;
+let unauthorizedSignaled = false;
+
+export function setUnauthorizedListener(listener: UnauthorizedListener | null): void {
+  unauthorizedListener = listener;
+}
+
+export function resetUnauthorizedSignal(): void {
+  unauthorizedSignaled = false;
+}
+
+export function isUnauthenticated(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401 && error.code !== "INVALID_CREDENTIALS";
+}
+
+function signalUnauthorized(error: ApiError): void {
+  if (!isUnauthenticated(error) || unauthorizedSignaled) {
+    return;
+  }
+
+  unauthorizedSignaled = true;
+  unauthorizedListener?.();
+}
+
+function readError(body: ErrorBody | DataBody<unknown> | null, status: number): ApiError {
+  const error = body && "error" in body ? body.error : undefined;
+
+  return new ApiError(
+    status,
+    error?.code ?? (status === 401 ? "UNAUTHENTICATED" : "INTERNAL_ERROR"),
+    error?.message ?? "Request failed.",
+    error?.details,
+  );
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!API_URL) {
-    throw new Error("NEXT_PUBLIC_API_URL is not configured.");
+    throw new ApiError(0, "NETWORK_ERROR", "Failed to reach the API.");
   }
 
   let response: Response;
@@ -39,7 +76,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       credentials: "include",
       headers: {
         Accept: "application/json",
-        "Content-Type": "application/json",
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...init?.headers,
       },
     });
@@ -47,16 +84,15 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, "NETWORK_ERROR", "Failed to reach the API.");
   }
 
-  const body = (await response.json().catch(() => null)) as ErrorBody | DataBody<T> | null;
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = contentType.includes("application/json")
+    ? ((await response.json().catch(() => null)) as ErrorBody | DataBody<T> | null)
+    : null;
 
   if (!response.ok) {
-    const error = body && "error" in body ? body.error : undefined;
-    throw new ApiError(
-      response.status,
-      error?.code ?? "INTERNAL_ERROR",
-      error?.message ?? "Request failed.",
-      error?.details,
-    );
+    const error = readError(body, response.status);
+    signalUnauthorized(error);
+    throw error;
   }
 
   if (!body || !("data" in body)) {

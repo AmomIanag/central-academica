@@ -48,7 +48,7 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface px-6 py-12 text-center" role="alert">
       <AlertCircle className="h-5 w-5 text-danger" aria-hidden />
       <p className="mt-3 text-sm font-medium text-foreground">{message}</p>
       {onRetry ? (
