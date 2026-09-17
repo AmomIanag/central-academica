@@ -2,7 +2,7 @@
 
 Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 será focada no módulo de notas.
 
-Este repositório está na **Etapa 2 (setup)**. Autenticação, modelo acadêmico e interface final ainda não foram implementados.
+Este repositório está na **Etapa 3 (banco e modelo acadêmico)**. Autenticação, API acadêmica e interface final ainda não foram implementados.
 
 ## Requisitos
 
@@ -46,7 +46,41 @@ Credenciais locais (não são de produção):
 - senha: `central`
 - database: `central_academica`
 
-A porta `5433` no host evita conflito com um PostgreSQL instalado na máquina na porta padrão `5432`. Não altere o serviço local; a API deste projeto usa `localhost:5433`.
+A porta `5433` no host evita conflito com um PostgreSQL instalado na máquina na porta padrão `5432`. Não altere o serviço local; a API e as migrations deste projeto usam `localhost:5433`.
+
+## Migrations e seed
+
+Com o container no ar e `apps/api/.env` apontando para `localhost:5433`:
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+Os scripts leem `DATABASE_URL` de `apps/api/.env`. Recusarão rodar se a URL não for o Postgres do projeto (`localhost:5433`).
+
+O seed é fictício e idempotente: executar de novo atualiza os mesmos registros, sem duplicar linhas.
+
+Aluno de desenvolvimento (não é credencial real):
+
+- nome: Aluno Teste
+- email: `aluno@central.local`
+- senha local: `dev-aluno-123`
+- RA: `RM000000`
+
+Para inspecionar o banco:
+
+```bash
+docker compose exec postgres psql -U central -d central_academica
+```
+
+Exemplos:
+
+```sql
+\dt
+SELECT * FROM users;
+SELECT count(*) FROM grades;
+```
 
 ## Variáveis de ambiente
 

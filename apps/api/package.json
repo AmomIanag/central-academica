@@ -7,12 +7,15 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx src/db/run-migrate.ts",
+    "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "node-pg-migrate": "^9.0.0",
     "pg": "^8.16.3"
   },
   "devDependencies": {
