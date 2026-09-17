@@ -32,18 +32,24 @@ Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, 
 
 `users.email` tem `UNIQUE` e `CHECK (email = lower(email))`. A aplicação (e o seed) persiste lowercase; o banco rejeita e-mail com maiúsculas.
 
-## Autenticação (a partir da Etapa 4)
+## Autenticação
 
-- Sessão server-side com `express-session` + `connect-pg-simple`.
-- Cookie httpOnly, `SameSite=Lax`, `Secure` em produção.
+- Sessão server-side com `express-session` + `connect-pg-simple`, persistida na tabela `session`.
+- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção.
 - Não usar `cookie-parser` salvo necessidade concreta: `express-session` já gerencia o cookie.
-- Após login bem-sucedido, regenerar a sessão **antes** de associar o usuário.
-- Senhas com `scrypt` via `node:crypto`.
+- Após login bem-sucedido, regenerar a sessão **antes** de associar `userId` e salvar a sessão antes da resposta.
+- Senhas com `scrypt` via `node:crypto` (formato `scrypt$N$r$p$salt$key`); comparação com `timingSafeEqual`. Login não distingue e-mail inexistente de senha incorreta.
+- `SESSION_SECRET` obrigatório, mínimo 32 caracteres, validado na subida da API.
+- Helmet nos headers HTTP. Sem rate limiting na V1 até ser pedido.
+- CORS com `credentials: true` e origem em `CORS_ORIGIN`.
+- `POST /auth/login` validado com Zod (e-mail válido, senha presente).
 - Sem JWT, NextAuth, Passport ou Redis na V1.
 
-A tabela `session` **não** foi criada na Etapa 3. `connect-pg-simple` entra na Etapa 4, junto com login. O seed gera `password_hash` apenas para satisfazer o schema.
+Código de auth em `apps/api/src/modules/auth/`. Middleware compartilhado `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
 
-`users.email` é `TEXT`, normalizado para lowercase antes de persistir, com `UNIQUE`. Não usar a extensão `CITEXT`.
+Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. `GET /health` permanece público.
+
+`users.email` é `TEXT`, normalizado para lowercase antes de persistir e no login, com `UNIQUE`. Não usar a extensão `CITEXT`.
 
 ## Modelagem acadêmica (V1)
 
@@ -81,7 +87,7 @@ Derivadas, não persistidas:
 
 Centralizar essa regra em um único módulo, fácil de alterar.
 
-## Contrato HTTP (a partir da API acadêmica)
+## Contrato HTTP
 
 - Sucesso: `{ "data": ... }`
 - Erro: `{ "error": { "code", "message", "details?" } }`
@@ -112,8 +118,8 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 
 1. Planejamento e arquitetura
 2. Setup do projeto
-3. Banco de dados e modelo acadêmico (`node-pg-migrate`, schema, seed) — atual
-4. Autenticação e segurança + testes mínimos das regras críticas de auth
+3. Banco de dados e modelo acadêmico (`node-pg-migrate`, schema, seed)
+4. Autenticação e segurança + testes mínimos das regras críticas de auth — atual
 5. API acadêmica + testes das regras de média e situação
 6. Frontend e identidade visual, já contra a API real
 7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo)

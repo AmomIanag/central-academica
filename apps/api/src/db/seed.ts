@@ -1,16 +1,12 @@
-import { scryptSync } from "node:crypto";
 import type { PoolClient } from "pg";
+import { hashPassword } from "../modules/auth/password";
 import { assertProjectDatabase } from "./assert-project-database";
 import { pool } from "./pool";
 
 assertProjectDatabase();
 
 const DEV_PASSWORD = "dev-aluno-123";
-const SCRYPT_N = 16384;
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
-const SCRYPT_KEYLEN = 64;
-const SCRYPT_SALT = Buffer.from("central-acad-seed");
+const DEV_PASSWORD_SALT = Buffer.from("central-acad-seed");
 
 const IDS = {
   user: "a1111111-1111-4111-8111-111111111111",
@@ -60,16 +56,6 @@ function gradeId(disciplineKey: string, index: number): string {
   };
 
   return `a7777777-7777-4777-8777-00000000${map[disciplineKey]}${String(index).padStart(2, "0")}`;
-}
-
-function hashDevPassword(): string {
-  const key = scryptSync(DEV_PASSWORD, SCRYPT_SALT, SCRYPT_KEYLEN, {
-    N: SCRYPT_N,
-    r: SCRYPT_R,
-    p: SCRYPT_P,
-  });
-
-  return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${SCRYPT_SALT.toString("hex")}$${key.toString("hex")}`;
 }
 
 const assessments = [
@@ -162,7 +148,7 @@ async function seed(): Promise<void> {
         IDS.user,
         "Aluno Teste",
         "aluno@central.local",
-        hashDevPassword(),
+        hashPassword(DEV_PASSWORD, DEV_PASSWORD_SALT),
         "RM000000",
         "Análise e Desenvolvimento de Sistemas",
         "student",

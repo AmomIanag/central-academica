@@ -1,6 +1,6 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. Estado real após a Etapa 3.  
+Handoff operacional. Estado real após a Etapa 4.  
 Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
 
 ## Objetivo
@@ -19,7 +19,8 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 
 - O frontend **não** acessa o PostgreSQL.
 - Express é a única camada de negócio e o único acesso ao banco.
-- Contrato HTTP acadêmico e auth ainda **não** estão implementados (exceto `GET /health`).
+- Auth HTTP implementada (`POST /auth/login`, `POST /auth/logout`, `GET /auth/me`). Contrato acadêmico ainda não.
+- `GET /health` permanece público: `{ "status", "database" }`.
 
 ## Infraestrutura local
 
@@ -32,6 +33,8 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado, migrado nem alterado**.  
 `DATABASE_URL` da API aponta para `localhost:5433`. Scripts de migrate/seed recusam outra porta.
 
+`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`.
+
 ## Etapas
 
 | Etapa | Status |
@@ -39,60 +42,40 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | 1. Planejamento e arquitetura | Concluída |
 | 2. Setup | Concluída e validada |
 | 3. Banco e modelo acadêmico | Concluída e validada |
-| 4. Autenticação e segurança | **Próxima** |
-| 5. API acadêmica | Não iniciada |
+| 4. Autenticação e segurança | **Concluída** |
+| 5. API acadêmica | **Próxima** |
 | 6. Frontend e identidade visual | Não iniciada |
 | 7. Integração ponta a ponta | Não iniciada |
 | 8. Polimento e suíte final | Não iniciada |
 
-## Estado da Etapa 3
+## Estado da Etapa 4
 
-Migrations em `apps/api/migrations/`:
+Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção). Helmet ligado. Login com Zod + scrypt (`timingSafeEqual`). Sessão regenerada após autenticação, `userId` associado depois, sessão salva antes da resposta.
 
-- `20260917140100_create-users`
-- `20260917140200_create-terms`
-- `20260917140300_create-professors`
-- `20260917140400_create-disciplines`
-- `20260917140500_create-enrollments`
-- `20260917140600_create-assessments`
-- `20260917140700_create-grades`
+Auth em `apps/api/src/modules/auth/`. `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
 
-Tabelas: `users`, `terms`, `professors`, `disciplines`, `enrollments`, `assessments`, `grades` (+ `pgmigrations`). Sem tabela `session`.
+Migrations em `apps/api/migrations/`: as 7 acadêmicas da Etapa 3 + `20260917140800_create-session`.
 
-Constraints relevantes: emails lowercase; `role` student/admin; `semester` 1/2; no máximo um `is_current`; `UNIQUE(term_id, code)`; `UNIQUE(user_id, discipline_id)`; `weight` em (0, 1]; `score` 0–10; FKs `ON DELETE RESTRICT`.
+Tabelas: `users`, `terms`, `professors`, `disciplines`, `enrollments`, `assessments`, `grades`, `session` (+ `pgmigrations`).
 
-Seed fictício, IDs fixos, idempotente (`ON CONFLICT (id) DO UPDATE`):
+Aluno de dev: `aluno@central.local` / senha local `dev-aluno-123`.
 
-| Tabela | Qtd |
-|---|---|
-| users | 1 |
-| terms | 1 (current) |
-| professors | 5 |
-| disciplines | 5 |
-| enrollments | 5 |
-| assessments | 15 |
-| grades | 9 |
-
-Aluno de dev: `aluno@central.local` / senha local `dev-aluno-123` (hash scrypt no seed; **login ainda não existe**).
-
-`GET /health` → HTTP 200 `{ "status": "ok", "database": "reachable" }`.
+Testes de auth (Vitest + Supertest) usam o Postgres em `5433` e o aluno de seed. Limpam só `session`. Script: `npm test`.
 
 ## Decisões aprovadas (não reabrir sem necessidade)
 
 - Não persistir `average` nem `status`.
 - Média futura na API: parcial ponderada pelas notas lançadas; corte V1 **6.0**; sem exame/substitutiva.
-- Sessões **somente na Etapa 4**.
 - Aluno autenticado acessa só os próprios dados (regra de service na API acadêmica).
+- Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta), rate limiting.
 
-## Etapa 4 — autenticação (a implementar)
+## Etapa 5 — API acadêmica (a implementar)
 
-- `express-session` + `connect-pg-simple` + cookie httpOnly
-- `scrypt` via `node:crypto`
-- Regenerar a sessão **depois** do login bem-sucedido, **antes** de associar o usuário
-- Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta)
-- Testes mínimos das regras críticas de auth nesta etapa
+- Endpoints `/me/dashboard`, `/me/disciplines` (lista e detalhe)
+- Média e situação derivadas no service
+- `requireAuth` já disponível; escopo = usuário da sessão
 
-**Não antecipar na Etapa 4:** endpoints acadêmicos (Etapa 5), dashboard/notas/UI final (Etapa 6), Redis, ORM, módulos fora da V1.
+**Não antecipar na Etapa 5:** dashboard/notas/UI final (Etapa 6), Redis, ORM, módulos fora da V1.
 
 ## Git
 
@@ -107,6 +90,7 @@ npm run db:migrate
 npm run db:seed
 npm run dev:api
 npm run dev:web
+npm test
 ```
 
 Verificar: `docker compose ps` (healthy, `5433->5432`), `curl http://localhost:3001/health`, `npm run lint`, `npm run typecheck`.

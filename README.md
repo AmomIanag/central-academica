@@ -2,7 +2,7 @@
 
 Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 será focada no módulo de notas.
 
-Este repositório está na **Etapa 3 (banco e modelo acadêmico)**. Autenticação, API acadêmica e interface final ainda não foram implementados.
+Este repositório está na **Etapa 4 (autenticação e segurança)**. A API acadêmica e a interface final ainda não foram implementadas.
 
 ## Requisitos
 
@@ -100,6 +100,8 @@ Copy-Item apps/web/.env.example apps/web/.env
 
 Os arquivos `.env` não devem ser commitados. Ajuste só se a conexão local for diferente do Compose.
 
+Na API, `SESSION_SECRET` é obrigatório e deve ter pelo menos 32 caracteres.
+
 ## Como iniciar
 
 Em dois terminais, na raiz:
@@ -133,3 +135,21 @@ Resposta esperada:
 ```
 
 Se o banco estiver inacessível, a API responde `503` e `database` vem como `unreachable`.
+
+## Autenticação (API)
+
+Com a API e o PostgreSQL no ar, cookie httpOnly `central.sid`:
+
+- `POST /auth/login` — `{ "email", "password" }`
+- `POST /auth/logout`
+- `GET /auth/me` — exige sessão
+
+Sucesso: `{ "data": ... }`. Erro: `{ "error": { "code", "message", "details?" } }`.
+
+Aluno de desenvolvimento (não é credencial real): `aluno@central.local` / `dev-aluno-123`.
+
+```bash
+npm test
+```
+
+Os testes de auth usam o Postgres do projeto em `localhost:5433` e não apagam dados acadêmicos.
