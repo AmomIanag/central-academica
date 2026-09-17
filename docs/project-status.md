@@ -108,3 +108,16 @@ Não usar `docker compose down -v`.
 Portal do professor, admin, cadastro, edição de notas, PWA, i18n, tema claro, deploy.
 
 **Próximo passo:** V2 — tarefas e agenda acadêmica.
+
+## Direção inicial da V2
+
+A V2 adicionará tarefas manuais e agenda acadêmica.
+
+Princípio inicial:
+- `tasks` representa organização pessoal do aluno.
+- `assessments` continua representando avaliações acadêmicas/notas.
+- Não fundir tasks e assessments automaticamente.
+- Uma tarefa pode opcionalmente estar associada a uma disciplina.
+- A integração entre tarefas e avaliações pode ser estudada futuramente, mas não deve ser presumida na primeira implementação da V2.
+
+A V2 ainda deve ser planejada antes de qualquer migration ou implementação.
