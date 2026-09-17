@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# env (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+
+# builds
+dist/
+.next/
+out/
+
+# logs and OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# tooling
+coverage/
+.turbo/
+.vscode/
+*.tsbuildinfo
