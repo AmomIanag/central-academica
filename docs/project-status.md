@@ -1,11 +1,11 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. Estado real após a Etapa 7.  
+Handoff operacional. **V1 concluída** (Etapas 1–8).  
 Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
 
 ## Objetivo
 
-Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 entrega bem o módulo de **notas** (login, dashboard e disciplinas), não um portal completo.
+Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 entrega o módulo de **notas** (login, dashboard e disciplinas), não um portal completo.
 
 ## Stack
 
@@ -22,6 +22,7 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 - Auth HTTP: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`.
 - API acadêmica autenticada: `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`.
 - `GET /health` permanece público: `{ "status", "database" }`.
+- Rotas desconhecidas da API respondem `404` no envelope `{ "error": { "code", "message" } }`.
 
 ## Infraestrutura local
 
@@ -41,54 +42,46 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | Etapa | Status |
 |---|---|
 | 1. Planejamento e arquitetura | Concluída |
-| 2. Setup | Concluída e validada |
-| 3. Banco e modelo acadêmico | Concluída e validada |
-| 4. Autenticação e segurança | **Concluída** |
-| 5. API acadêmica | **Concluída** |
-| 6. Frontend e identidade visual | **Concluída** |
-| 7. Integração ponta a ponta | **Concluída** |
-| 8. Polimento e suíte final | Não iniciada |
+| 2. Setup | Concluída |
+| 3. Banco e modelo acadêmico | Concluída |
+| 4. Autenticação e segurança | Concluída |
+| 5. API acadêmica | Concluída |
+| 6. Frontend e identidade visual | Concluída |
+| 7. Integração ponta a ponta | Concluída |
+| 8. Polimento, testes e entrega | **Concluída — V1 fechada** |
 
-## Estado da Etapa 4
-
-Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção). Helmet ligado. Login com Zod + scrypt (`timingSafeEqual`). Sessão regenerada após autenticação, `userId` associado depois, sessão salva antes da resposta.
-
-Auth em `apps/api/src/modules/auth/`. `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
+## Banco
 
 Migrations em `apps/api/migrations/`: as 7 acadêmicas da Etapa 3 + `20260917140800_create-session`.
 
 Tabelas: `users`, `terms`, `professors`, `disciplines`, `enrollments`, `assessments`, `grades`, `session` (+ `pgmigrations`).
 
-Aluno de dev: `aluno@central.local` / senha local `dev-aluno-123`.
+Seed fictício e idempotente. Aluno de dev: `aluno@central.local` / senha local `dev-aluno-123`.
 
-Testes de auth (Vitest + Supertest) usam o Postgres em `5433` e o aluno de seed. Limpam só `session`. Script: `npm test`.
+Não persistir `average` nem `status`. Média na API: parcial ponderada pelas notas lançadas; corte V1 **6.0**; sem exame/substitutiva.
+
+## Auth
+
+Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção). Helmet ligado. Login com Zod + scrypt (`timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
+
+Auth em `apps/api/src/modules/auth/`. `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
+
+## Frontend
+
+Layouts `(auth)` e `(app)`, login, dashboard, notas e detalhe contra a API real. Design dark-first FIAP. Cliente HTTP com `credentials: "include"`; 401/`UNAUTHENTICATED` redireciona ao login. Sem mocks.
+
+Sidebar da V1: Dashboard e Notas.
+
+## Testes
+
+- API: Vitest + Supertest (auth, sessão, média/status, isolamento, 404). Script: `npm test`.
+- web: Vitest (formatação e erros HTTP). Sem Cypress/Playwright na V1.
 
 ## Decisões aprovadas (não reabrir sem necessidade)
 
 - Não persistir `average` nem `status`.
-- Média futura na API: parcial ponderada pelas notas lançadas; corte V1 **6.0**; sem exame/substitutiva.
-- Aluno autenticado acessa só os próprios dados (regra de service na API acadêmica).
+- Aluno autenticado acessa só os próprios dados.
 - Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta), rate limiting.
-
-## Estado da Etapa 5
-
-Leitura autenticada do período `is_current`. Escopo sempre `req.session.userId`. Disciplina inexistente ou de outro aluno → o mesmo `NOT_FOUND`.
-
-Média/status em `apps/api/src/modules/academic/grades.ts` (corte `PASSING_AVERAGE = 6.0`). NUMERIC do Postgres convertido para `number`; médias arredondadas a 2 casas só na resposta.
-
-Organização: `modules/dashboard` e `modules/disciplines` (routes / controller / service / repository). Sem migration nova.
-
-Testes de média (unidade) e HTTP (seed + isolamento temporário). Script: `npm test`.
-
-## Estado da Etapa 6
-
-Layouts `(auth)` e `(app)`, login, dashboard, notas e detalhe contra a API real. Design dark-first FIAP, `lucide-react`, sem mocks.
-
-## Estado da Etapa 7
-
-Hardening da integração: cliente HTTP centralizado (`credentials: "include"`), 401/`UNAUTHENTICATED` único no cliente (sem JWT/RSC), estados de erro/vazio/loading, a11y básica (foco, labels, logout, menu). CORS/cookie da Etapa 4 permanecem.
-
-**Não antecipar na Etapa 8:** suíte final ampla, polimento visual extra, V2.
 
 ## Git
 
@@ -109,3 +102,9 @@ npm test
 Verificar: `docker compose ps` (healthy, `5433->5432`), `curl http://localhost:3001/health`, `npm run lint`, `npm run typecheck`.
 
 Não usar `docker compose down -v`.
+
+## Fora da V1 / próximo passo
+
+Portal do professor, admin, cadastro, edição de notas, PWA, i18n, tema claro, deploy.
+
+**Próximo passo:** V2 — tarefas e agenda acadêmica.

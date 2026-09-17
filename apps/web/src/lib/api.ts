@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+function apiUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_API_URL;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -64,6 +66,8 @@ function readError(body: ErrorBody | DataBody<unknown> | null, status: number): 
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const API_URL = apiUrl();
+
   if (!API_URL) {
     throw new ApiError(0, "NETWORK_ERROR", "Failed to reach the API.");
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BookOpen, LayoutDashboard, LogOut, Menu, X } from "lucide-react";
@@ -28,6 +28,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const navId = useId();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  const wasMobileOpen = useRef(false);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,19 +93,56 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!mobileOpen) {
+    if (wasMobileOpen.current && !mobileOpen) {
+      menuButtonRef.current?.focus();
+    }
+
+    wasMobileOpen.current = mobileOpen;
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen || desktop) {
       return;
     }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const root = asideRef.current;
+    const focusables = root
+      ? Array.from(root.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"))
+      : [];
+
+    focusables[0]?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMobileOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || focusables.length === 0) {
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mobileOpen]);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [desktop, mobileOpen]);
 
   const logout = useCallback(async () => {
     if (loggingOut) {
@@ -138,9 +178,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const pageTitle = pathname.startsWith("/notas") ? "Notas" : "Dashboard";
+  const mobileDialog = !desktop && mobileOpen;
 
   return (
     <div className="min-h-screen bg-background">
+      <a href="#conteudo" className="skip-link">
+        Pular para o conteúdo
+      </a>
+
       {mobileOpen ? (
         <button
           type="button"
@@ -151,8 +196,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       ) : null}
 
       <aside
+        ref={asideRef}
         id={navId}
         inert={!desktop && !mobileOpen ? true : undefined}
+        role={mobileDialog ? "dialog" : undefined}
+        aria-modal={mobileDialog ? true : undefined}
+        aria-label={mobileDialog ? "Menu de navegação" : undefined}
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-background px-3 py-4 transition-transform md:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
@@ -160,7 +209,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="flex items-center justify-between px-2 pb-5">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">FIAP</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent-label">
+              FIAP
+            </p>
             <p className="mt-1 text-sm font-semibold tracking-tight">Central Acadêmica</p>
           </div>
           <button
@@ -209,6 +260,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background px-4 md:px-6">
           <div className="flex items-center gap-2">
             <button
+              ref={menuButtonRef}
               type="button"
               className="rounded-md p-1.5 text-muted hover:bg-surface-hover hover:text-foreground md:hidden"
               onClick={() => setMobileOpen(true)}
@@ -232,6 +284,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => void logout()}
               disabled={loggingOut}
               aria-label="Sair"
+              aria-busy={loggingOut}
             >
               {loggingOut ? (
                 <Spinner className="h-4 w-4" />
@@ -243,7 +296,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="px-4 py-6 md:px-6">{children}</main>
+        <main id="conteudo" tabIndex={-1} className="px-4 py-6 outline-none md:px-6">
+          {children}
+        </main>
       </div>
     </div>
   );

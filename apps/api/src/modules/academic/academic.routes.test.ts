@@ -55,6 +55,13 @@ describe("academic routes", () => {
     expect(response.body.error.code).toBe("UNAUTHENTICATED");
   });
 
+  it("rejects GET /me/dashboard without a session", async () => {
+    const response = await request(app).get("/me/dashboard");
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("UNAUTHENTICATED");
+  });
+
   it("lists the seed student's current-term disciplines with numeric averages", async () => {
     const agent = await login(SEED_EMAIL, SEED_PASSWORD);
     const response = await agent.get("/me/disciplines");

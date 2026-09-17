@@ -26,6 +26,16 @@ describe("auth routes", () => {
     });
   });
 
+  it("returns the JSON error envelope for unknown routes", async () => {
+    const response = await request(app).get("/does-not-exist");
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toEqual({
+      code: "NOT_FOUND",
+      message: "Route not found.",
+    });
+  });
+
   it("rejects invalid login bodies with the error contract", async () => {
     const invalidEmail = await request(app).post("/auth/login").send({
       email: "not-an-email",

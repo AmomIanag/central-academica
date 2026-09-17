@@ -39,7 +39,7 @@ export default function NotasPage() {
       <div className="space-y-2 lg:hidden">
         {data.map((discipline) => (
           <Link key={discipline.id} href={`/notas/${discipline.id}`} className="block">
-            <Card className="px-4 py-3">
+            <Card className="px-4 py-3 transition-colors hover:bg-surface-hover">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-muted">{discipline.code}</p>
@@ -58,14 +58,25 @@ export default function NotasPage() {
 
       <Card className="hidden overflow-hidden lg:block">
         <table className="w-full text-left text-sm">
+          <caption className="sr-only">Disciplinas do período atual</caption>
           <thead className="border-b border-border text-xs text-muted">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Código</th>
-              <th className="px-4 py-2.5 font-medium">Disciplina</th>
-              <th className="px-4 py-2.5 font-medium">Professor</th>
-              <th className="px-4 py-2.5 font-medium">Média</th>
-              <th className="px-4 py-2.5 font-medium">Situação</th>
-              <th className="px-4 py-2.5 font-medium">
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Código
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Disciplina
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Professor
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Média
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Situação
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
                 <span className="sr-only">Abrir</span>
               </th>
             </tr>

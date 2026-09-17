@@ -95,6 +95,7 @@ V1 lê só o termo `is_current = true`. Sem período atual: lista vazia, dashboa
 - JSON em camelCase; SQL em snake_case
 - IDs UUID; datas ISO 8601
 - Exceção: `GET /health` responde `{ "status", "database" }` e não usa o envelope `data`
+- Rotas desconhecidas: `404` com `{ "error": { "code": "NOT_FOUND", "message" } }`
 
 ## Frontend
 
@@ -123,8 +124,8 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 4. Autenticação e segurança + testes mínimos das regras críticas de auth
 5. API acadêmica + testes das regras de média e situação
 6. Frontend e identidade visual, já contra a API real
-7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo) — atual
-8. Polimento, revisão e suíte final de testes
+7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo)
+8. Polimento, revisão e suíte final de testes — **V1 concluída**
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.
 

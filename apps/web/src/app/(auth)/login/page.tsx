@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [invalidFields, setInvalidFields] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function LoginPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setInvalidFields(false);
     setSubmitting(true);
 
     try {
@@ -53,11 +55,9 @@ export default function LoginPage() {
       resetUnauthorizedSignal();
       router.replace("/dashboard");
     } catch (caught) {
-      if (caught instanceof ApiError && caught.code === "VALIDATION_ERROR") {
-        setError("Informe um e-mail e uma senha válidos.");
-      } else {
-        setError(errorMessage(caught));
-      }
+      const validation = caught instanceof ApiError && caught.code === "VALIDATION_ERROR";
+      setInvalidFields(validation);
+      setError(validation ? "Informe um e-mail e uma senha válidos." : errorMessage(caught));
       setSubmitting(false);
     }
   }
@@ -71,7 +71,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <section className="w-full max-w-[380px]">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent">FIAP</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent-label">FIAP</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Central Acadêmica</h1>
         <p className="mt-2 text-sm text-muted">
           Entre com seu e-mail institucional para ver notas e disciplinas.
@@ -94,7 +94,7 @@ export default function LoginPage() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
-            aria-invalid={Boolean(error)}
+            aria-invalid={invalidFields || undefined}
             aria-describedby={error ? errorId : undefined}
           />
 
@@ -110,7 +110,7 @@ export default function LoginPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
-            aria-invalid={Boolean(error)}
+            aria-invalid={invalidFields || undefined}
             aria-describedby={error ? errorId : undefined}
           />
 

@@ -84,12 +84,21 @@ export default function DisciplinePage() {
 
           <Card className="hidden overflow-hidden lg:block">
             <table className="w-full text-left text-sm">
+              <caption className="sr-only">Avaliações da disciplina</caption>
               <thead className="border-b border-border text-xs text-muted">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Avaliação</th>
-                  <th className="px-4 py-2.5 font-medium">Peso</th>
-                  <th className="px-4 py-2.5 font-medium">Data</th>
-                  <th className="px-4 py-2.5 font-medium">Nota</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">
+                    Avaliação
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">
+                    Peso
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">
+                    Data
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">
+                    Nota
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

@@ -41,9 +41,18 @@ app.use("/auth", authRouter);
 app.use("/me", dashboardRouter);
 app.use("/me", disciplinesRouter);
 
+app.use((_req, res) => {
+  sendError(res, 404, "NOT_FOUND", "Route not found.");
+});
+
 app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {
     next(error);
+    return;
+  }
+
+  if (error instanceof SyntaxError) {
+    sendError(res, 400, "VALIDATION_ERROR", "Invalid JSON body.");
     return;
   }
 

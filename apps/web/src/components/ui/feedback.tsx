@@ -8,7 +8,7 @@ export function Spinner({ className }: { className?: string }) {
 
 export function PageLoading() {
   return (
-    <div className="flex min-h-[50vh] items-center justify-center">
+    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-live="polite">
       <Spinner className="h-5 w-5 text-muted" />
       <span className="sr-only">Carregando</span>
     </div>
@@ -17,7 +17,11 @@ export function PageLoading() {
 
 export function ScreenLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div
+      className="flex min-h-screen items-center justify-center bg-background"
+      role="status"
+      aria-live="polite"
+    >
       <Spinner className="h-5 w-5 text-muted" />
       <span className="sr-only">Carregando</span>
     </div>
@@ -32,7 +36,10 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-border px-6 py-12 text-center">
+    <div
+      className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-dashed border-border px-6 py-12 text-center"
+      role="status"
+    >
       <Inbox className="h-5 w-5 text-muted" aria-hidden />
       <p className="mt-3 text-sm font-medium text-foreground">{title}</p>
       {description ? <p className="mt-1 max-w-sm text-sm text-muted">{description}</p> : null}
@@ -48,7 +55,10 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface px-6 py-12 text-center" role="alert">
+    <div
+      className="flex flex-col items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface px-6 py-12 text-center"
+      role="alert"
+    >
       <AlertCircle className="h-5 w-5 text-danger" aria-hidden />
       <p className="mt-3 text-sm font-medium text-foreground">{message}</p>
       {onRetry ? (

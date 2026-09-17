@@ -45,7 +45,7 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <section>
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-accent-label">
           {data.term?.label ?? "Sem período atual"}
         </p>
         <h2 className="mt-1 text-xl font-semibold tracking-tight">Olá, {data.student.name}</h2>
