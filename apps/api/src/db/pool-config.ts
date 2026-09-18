@@ -1,6 +1,9 @@
 import type { PoolConfig } from "pg";
 
-export type PostgresSslConfig = { rejectUnauthorized: true };
+export type PostgresSslConfig = {
+  rejectUnauthorized: true;
+  ca?: string;
+};
 
 function parseConnectionUrl(connectionString: string): URL {
   try {
@@ -26,9 +29,35 @@ function stripSslSearchParams(connectionString: string): string {
   return parsed.toString();
 }
 
+export function normalizeDatabaseSslCa(raw: string | undefined): string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  let value = raw.trim();
+
+  if (!value) {
+    return undefined;
+  }
+
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1).trim();
+  }
+
+  if (!value) {
+    return undefined;
+  }
+
+  return value.replace(/\r\n/g, "\n").replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
+}
+
 export function resolvePostgresSsl(
   connectionString: string,
   nodeEnv: string,
+  sslCa?: string,
 ): PostgresSslConfig | undefined {
   const mode = sslMode(connectionString);
 
@@ -36,19 +65,26 @@ export function resolvePostgresSsl(
     return undefined;
   }
 
-  if (mode === "require" || mode === "verify-ca" || mode === "verify-full") {
-    return { rejectUnauthorized: true };
+  const enableTls =
+    mode === "require" ||
+    mode === "verify-ca" ||
+    mode === "verify-full" ||
+    (nodeEnv === "production" && !isLoopbackHost(connectionString));
+
+  if (!enableTls) {
+    return undefined;
   }
 
-  if (nodeEnv === "production" && !isLoopbackHost(connectionString)) {
-    return { rejectUnauthorized: true };
-  }
-
-  return undefined;
+  const ca = normalizeDatabaseSslCa(sslCa);
+  return ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: true };
 }
 
-export function postgresPoolConfig(connectionString: string, nodeEnv: string): PoolConfig {
-  const ssl = resolvePostgresSsl(connectionString, nodeEnv);
+export function postgresPoolConfig(
+  connectionString: string,
+  nodeEnv: string,
+  sslCa?: string,
+): PoolConfig {
+  const ssl = resolvePostgresSsl(connectionString, nodeEnv, sslCa);
 
   return {
     connectionString: stripSslSearchParams(connectionString),

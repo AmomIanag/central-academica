@@ -47,6 +47,7 @@ export const env = {
   corsOrigin,
   sessionSecret,
   trustProxyHops,
+  databaseSslCa: process.env.DATABASE_SSL_CA,
 };
 
 export function runtimeDatabaseUrl(): string {

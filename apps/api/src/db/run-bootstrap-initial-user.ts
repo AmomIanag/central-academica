@@ -14,7 +14,9 @@ async function run(): Promise<void> {
   const databaseUrl = resolveBootstrapDatabaseUrl(process.env);
   const input = parseInitialUserEnv(process.env);
   const nodeEnv = process.env.NODE_ENV ?? "development";
-  const client = new Client(postgresPoolConfig(databaseUrl, nodeEnv));
+  const client = new Client(
+    postgresPoolConfig(databaseUrl, nodeEnv, process.env.DATABASE_SSL_CA),
+  );
   await client.connect();
 
   try {

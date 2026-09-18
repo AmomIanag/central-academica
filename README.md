@@ -80,7 +80,7 @@ Os arquivos `.env` não devem ser commitados.
 | App | Variáveis |
 |---|---|
 | API (dev) | `PORT`, `DATABASE_URL`, `TEST_DATABASE_URL`, `CORS_ORIGIN`, `SESSION_SECRET` (mínimo 32 caracteres), `TRUST_PROXY_HOPS` (padrão `0`) |
-| API (produção) | `NODE_ENV=production`, `PORT` (plataforma), `DATABASE_URL`, `SESSION_SECRET`, `CORS_ORIGIN` (origem HTTPS do frontend), `TRUST_PROXY_HOPS` (só depois de validar o Railway) |
+| API (produção) | `NODE_ENV=production`, `PORT` (plataforma), `DATABASE_URL`, `SESSION_SECRET`, `CORS_ORIGIN` (origem HTTPS do frontend), `TRUST_PROXY_HOPS` (só depois de validar o Railway), `DATABASE_SSL_CA` (opcional, PEM da CA; server-side) |
 | web (dev) | `NEXT_PUBLIC_API_URL=http://localhost:3001` |
 | web (produção) | `NEXT_PUBLIC_API_URL=/api`, `API_PROXY_TARGET` (origem da API; server-side) |
 
@@ -88,6 +88,8 @@ Os arquivos `.env` não devem ser commitados.
 `TEST_DATABASE_URL` aponta para o database de testes (`central_academica_test`) no **mesmo** PostgreSQL Docker e **não** é usado em produção.
 
 `MIGRATION_DATABASE_URL` é só para `npm run db:migrate:prod`. A API não exige essa variável na subida.
+
+`DATABASE_SSL_CA` é opcional e server-side: PEM da CA do Postgres hospedado, usada pela API e por `db:migrate:prod` com `rejectUnauthorized: true`. Não exponha no frontend. Desenvolvimento local continua sem TLS.
 
 Em produção, `NODE_ENV=production` é obrigatório (o cookie `Secure` depende disso e de HTTPS). `SESSION_SECRET`, `CORS_ORIGIN` e as credenciais do banco devem ser únicos — a API recusa os placeholders documentados de desenvolvimento. Checklist: [docs/deployment.md](docs/deployment.md).
 
@@ -220,7 +222,7 @@ npm test
 - **API:** Vitest + Supertest (auth, CSRF, sessão, throttling de login, média anual/status, CRUD acadêmico, presença, tarefas, isolamento entre alunos). Usam `TEST_DATABASE_URL` (`central_academica_test` em `localhost:5433`). Recusam o database de desenvolvimento. `npm test` prepara o database de teste antes de executar. A configuração canônica é `apps/api/vitest.config.mts`, com setup que valida o database de teste e limpa só ele.
 - **web:** Vitest (formatação, erros HTTP, contrato de `due` e cliente de tasks). Sem Cypress/Playwright.
 
-Total: 153 testes (121 API + 32 web).
+Total: 159 testes (127 API + 32 web).
 
 ## Endpoints principais
 

@@ -42,7 +42,7 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 `DATABASE_URL` da API aponta para `localhost:5433` / `central_academica`.  
 `TEST_DATABASE_URL` aponta para o mesmo Postgres Docker, database `central_academica_test`.
 
-`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`. Em produção, `NODE_ENV=production` é obrigatório (cookie `Secure` + HTTPS) e os placeholders de desenvolvimento de `SESSION_SECRET`, `CORS_ORIGIN=http://localhost:3000` e credenciais `central`/`central` são recusados na subida da API.
+`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`. Em produção, `NODE_ENV=production` é obrigatório (cookie `Secure` + HTTPS) e os placeholders de desenvolvimento de `SESSION_SECRET`, `CORS_ORIGIN=http://localhost:3000` e credenciais `central`/`central` são recusados na subida da API. `DATABASE_SSL_CA` é opcional (PEM da CA, server-side) e não vai para o frontend.
 
 `TRUST_PROXY_HOPS` é um inteiro (padrão `0`). Não definir automaticamente como `1`. O valor correto só pode ser escolhido na validação real do Railway. `trust proxy = true` genérico não é usado.
 
@@ -127,7 +127,7 @@ Agenda é visualização das tasks (hoje, semana, mês, próximas, sem prazo). A
 - API: Vitest + Supertest (auth, CSRF, sessão, média anual/status, CRUD acadêmico, presença, tasks, isolamento, 404). Script: `npm test` (prepara o database de teste).
 - web: Vitest (formatação, erros HTTP, contrato de `due`, timezone/calendário, cliente de tasks). Sem Cypress/Playwright.
 
-Total atual: **153 testes** (121 API + 32 web).
+Total atual: **159 testes** (127 API + 32 web).
 
 ## Decisões aprovadas (não reabrir sem necessidade)
 

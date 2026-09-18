@@ -36,7 +36,7 @@ Não há `packages/` compartilhados na V1/V2/V2.2. Tipos do contrato podem ser d
 - Migrations versionadas com `node-pg-migrate` em `apps/api/migrations`.
 - Scripts na raiz: `npm run db:migrate` (Docker local, recusa porta ≠ 5433) e `npm run db:seed` (desenvolvimento). Produção: `npm run db:migrate:prod` (`MIGRATION_DATABASE_URL` + `ALLOW_PRODUCTION_MIGRATIONS=true`) e `npm run db:bootstrap-user`. Nenhum desses roda no startup da API ou da web.
 - Runtime usa `DATABASE_URL`. Migração de produção usa só `MIGRATION_DATABASE_URL` (não cai para `DATABASE_URL` nem `TEST_DATABASE_URL`).
-- Em produção, TLS segue a URL/`sslmode` do provedor, com verificação de certificado (`rejectUnauthorized: true`). `rejectUnauthorized: false` não é default. Desenvolvimento local permanece sem TLS.
+- Em produção, TLS segue a URL/`sslmode` do provedor, com verificação de certificado (`rejectUnauthorized: true`). `DATABASE_SSL_CA` (PEM, server-side, opcional) é a CA confiável passada ao `pg` — não use `rejectUnauthorized: false` nem `NODE_EXTRA_CA_CERTS` como dependência do Railway. Desenvolvimento local permanece sem TLS.
 - UUIDs gerados pela aplicação (`crypto.randomUUID()` no código futuro; IDs determinísticos no seed). Sem extensão PostgreSQL só para gerar UUID.
 - Sem Prisma, Drizzle ou TypeORM na V1/V2/V2.2.
 

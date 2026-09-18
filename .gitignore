@@ -22,3 +22,5 @@ coverage/
 .turbo/
 .vscode/
 *.tsbuildinfo
+
+/supabase-ca.crt

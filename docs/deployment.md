@@ -33,6 +33,7 @@ Docker Compose permanece **somente desenvolvimento** (`127.0.0.1:5433:5432`). N�
 - [ ] Criar um projeto PostgreSQL (somente banco)
 - [ ] Copiar a connection string do Postgres (não a URL do PostgREST)
 - [ ] Preferir a URL que o provedor indicar para conexões server-side, incluindo `sslmode` se fornecido
+- [ ] Colar a CA raiz oficial em `DATABASE_SSL_CA` (PEM). Não commitar o certificado. Não usar `rejectUnauthorized: false`.
 - [ ] Não habilitar Auth, não expor a tabela ao frontend, não usar a `anon` key na web
 - [ ] Anotar, se o provedor oferecer endpoints distintos: URL de runtime vs URL de migração (`DATABASE_URL` vs `MIGRATION_DATABASE_URL`)
 
@@ -43,7 +44,7 @@ Não conectar ferramentas locais ao banco de produção neste checklist até o p
 Comando (explícito; **não** roda no startup da API):
 
 ```bash
-ALLOW_PRODUCTION_MIGRATIONS=true MIGRATION_DATABASE_URL="<url>" npm run db:migrate:prod
+ALLOW_PRODUCTION_MIGRATIONS=true MIGRATION_DATABASE_URL="<url>" DATABASE_SSL_CA="<pem>" npm run db:migrate:prod
 ```
 
 O script:
@@ -53,6 +54,7 @@ O script:
 - não executa o seed de desenvolvimento
 - imprime host/database com senha mascarada
 - recusa reshape V2.2 se o banco já tiver dados acadêmicos e `academic-v22` ainda não estiver aplicada
+- usa o mesmo helper TLS da API (`DATABASE_SSL_CA` + `rejectUnauthorized: true`) na conexão de `MIGRATION_DATABASE_URL`
 
 - [ ] Confirmar que o banco está vazio (primeiro deploy) ou que `academic-v22` já consta em `pgmigrations`
 - [ ] Executar `npm run db:migrate:prod`
@@ -96,6 +98,7 @@ Variáveis da API:
 | `NODE_ENV` | `production` (cookie `Secure`) |
 | `PORT` | fornecido pela plataforma |
 | `DATABASE_URL` | PostgreSQL de runtime |
+| `DATABASE_SSL_CA` | PEM da CA (opcional, server-side). Mesma variável na API e em `db:migrate:prod` |
 | `SESSION_SECRET` | único, ≥ 32 caracteres |
 | `CORS_ORIGIN` | origem HTTPS do frontend no **navegador** |
 | `TRUST_PROXY_HOPS` | inteiro; **deixar 0** até validar a topologia |
@@ -119,7 +122,7 @@ npm run build:web
 | `NEXT_PUBLIC_API_URL` | `/api` |
 | `API_PROXY_TARGET` | origem HTTPS da API no Railway (**server-side**) |
 
-Não definir `NEXT_PUBLIC_API_PROXY_TARGET`, `DATABASE_URL` nem `SESSION_SECRET` na web.
+Não definir `NEXT_PUBLIC_API_PROXY_TARGET`, `DATABASE_URL`, `DATABASE_SSL_CA` nem `SESSION_SECRET` na web.
 
 Rewrite: `/api/:path*` → `<API_PROXY_TARGET>/:path*`.
 
@@ -178,4 +181,4 @@ Só promover se:
 
 ---
 
-Itens que só a infraestrutura real pode confirmar: certificado TLS do Postgres, hops de proxy, encaminhamento de `Set-Cookie` no rewrite da Vercel, e se runtime e migração usam o mesmo endpoint ou um pooler distinto.
+Itens que só a infraestrutura real pode confirmar: hops de proxy, encaminhamento de `Set-Cookie` no rewrite da Vercel, e se runtime e migração usam o mesmo endpoint ou um pooler distinto. TLS do Postgres deve usar `DATABASE_SSL_CA` no Railway (não um arquivo local nem `NODE_EXTRA_CA_CERTS`).
