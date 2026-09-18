@@ -1,11 +1,14 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. **V1 concluída** (Etapas 1–8).  
+Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard).  
 Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
 
 ## Objetivo
 
-Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A V1 entrega o módulo de **notas** (login, dashboard e disciplinas), não um portal completo.
+Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP.
+
+- **V1:** módulo de **notas** (login, dashboard acadêmico e disciplinas).
+- **V2:** **tarefas pessoais**, **agenda** (visão das tasks) e resumo compacto de tarefas no dashboard.
 
 ## Stack
 
@@ -13,7 +16,7 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 - **web:** Next.js (App Router) + React + TypeScript + Tailwind
 - **api:** Node.js + Express + TypeScript
 - **banco:** PostgreSQL via Docker Compose; driver `pg` + SQL; migrations `node-pg-migrate`
-- Sem ORM. Sem `packages/` na V1.
+- Sem ORM. Sem `packages/` na V1/V2.
 
 ## Arquitetura em vigor
 
@@ -21,8 +24,10 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 - Express é a única camada de negócio e o único acesso ao banco.
 - Auth HTTP: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`.
 - API acadêmica autenticada: `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`.
+- API de tarefas autenticada: `GET|POST /me/tasks`, `GET /me/tasks/summary`, `GET /me/tasks/options`, `GET|PATCH|DELETE /me/tasks/:id`, `POST /me/tasks/:id/complete`, `POST /me/tasks/:id/reopen`.
 - `GET /health` permanece público: `{ "status", "database" }`.
 - Rotas desconhecidas da API respondem `404` no envelope `{ "error": { "code", "message" } }`.
+- Métodos mutáveis exigem `Origin` igual a `CORS_ORIGIN`; Origin ausente ou inválido responde `403` `CSRF_REJECTED`. GET/HEAD/OPTIONS não exigem Origin.
 
 ## Infraestrutura local
 
@@ -33,7 +38,8 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 | PostgreSQL **deste projeto** (Docker) | `localhost:5433` → container `5432` |
 
 O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado, migrado nem alterado**.  
-`DATABASE_URL` da API aponta para `localhost:5433`. Scripts de migrate/seed recusam outra porta.
+`DATABASE_URL` da API aponta para `localhost:5433` / `central_academica`.  
+`TEST_DATABASE_URL` aponta para o mesmo Postgres Docker, database `central_academica_test`.
 
 `SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`.
 
@@ -49,38 +55,64 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | 6. Frontend e identidade visual | Concluída |
 | 7. Integração ponta a ponta | Concluída |
 | 8. Polimento, testes e entrega | **Concluída — V1 fechada** |
+| V2. Tarefas, agenda e dashboard | **Concluída** |
 
 ## Banco
 
-Migrations em `apps/api/migrations/`: as 7 acadêmicas da Etapa 3 + `20260917140800_create-session`.
+Migrations em `apps/api/migrations/`: as 7 acadêmicas da Etapa 3 + `20260917140800_create-session` + `20260917215800_create-tasks`.
 
-Tabelas: `users`, `terms`, `professors`, `disciplines`, `enrollments`, `assessments`, `grades`, `session` (+ `pgmigrations`).
+Tabelas: `users`, `terms`, `professors`, `disciplines`, `enrollments`, `assessments`, `grades`, `session`, `tasks` (+ `pgmigrations`).
 
-Seed fictício e idempotente. Aluno de dev: `aluno@central.local` / senha local `dev-aluno-123`.
+`tasks` é organização pessoal do aluno. `assessments` continua sendo avaliação acadêmica/nota. Não há fusão automática.
 
-Não persistir `average` nem `status`. Média na API: parcial ponderada pelas notas lançadas; corte V1 **6.0**; sem exame/substitutiva.
+Estado da task: `completed_at IS NULL` → pending; caso contrário → completed. Não há coluna `status`, `type` nem `progress`.
 
-## Auth
+Prazo: `due_on` (DATE) **ou** `due_at` (TIMESTAMPTZ), nunca ambos; ambos NULL = sem prazo. Associação opcional a disciplina via FK composta `(user_id, discipline_id)` contra `enrollments`, `ON DELETE RESTRICT`. Exclusão de task é hard delete.
+
+Seed fictício e idempotente (não cria tasks). Aluno de dev: `aluno@central.local` / senha local `dev-aluno-123`.
+
+Não persistir `average` nem `status` acadêmicos. Média na API: parcial ponderada pelas notas lançadas; corte V1 **6.0**; sem exame/substitutiva.
+
+## Database de testes
+
+Testes da API usam `central_academica_test` no mesmo container Docker (`localhost:5433`), nunca o database de desenvolvimento.
+
+- Variável: `TEST_DATABASE_URL`
+- Preparação: `npm run db:test:prepare` (também roda no início de `npm test` da API)
+- Antes de limpeza destrutiva, a suíte valida que a URL aponta inequivocamente para `central_academica_test`
+
+Não usar o PostgreSQL do Windows em `5432`. Não executar `docker compose down -v`.
+
+## Auth e CSRF
 
 Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção). Helmet ligado. Login com Zod + scrypt (`timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
 
-Auth em `apps/api/src/modules/auth/`. `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
+Mutações (POST/PATCH/PUT/DELETE), inclusive login/logout, exigem Origin confiável. Sem token CSRF separado.
+
+Auth em `apps/api/src/modules/auth/`. `requireAuth` e `requireTrustedOrigin` em `src/middlewares`. Envelope HTTP em `src/http`.
 
 ## Frontend
 
-Layouts `(auth)` e `(app)`, login, dashboard, notas e detalhe contra a API real. Design dark-first FIAP. Cliente HTTP com `credentials: "include"`; 401/`UNAUTHENTICATED` redireciona ao login. Sem mocks.
+Layouts `(auth)` e `(app)`. Login, dashboard, notas, tarefas (`/tarefas`, `/tarefas/nova`, `/tarefas/[id]`) e agenda (`/agenda`) contra a API real. Design dark-first FIAP. Cliente HTTP com `credentials: "include"`; 401/`UNAUTHENTICATED` redireciona ao login. Sem mocks permanentes.
 
-Sidebar da V1: Dashboard e Notas.
+Sidebar: Dashboard, Tarefas, Agenda e Notas.
+
+O dashboard busca `/me/dashboard` e `/me/tasks/summary` em paralelo. Falha no bloco de tarefas não derruba o resumo acadêmico.
+
+Agenda é visualização das tasks (hoje, semana, mês, próximas, sem prazo). Avaliações não entram na agenda da V2.
 
 ## Testes
 
-- API: Vitest + Supertest (auth, sessão, média/status, isolamento, 404). Script: `npm test`.
-- web: Vitest (formatação e erros HTTP). Sem Cypress/Playwright na V1.
+- API: Vitest + Supertest (auth, CSRF, sessão, média/status, tasks, isolamento, 404). Script: `npm test` (prepara o database de teste).
+- web: Vitest (formatação, erros HTTP, contrato de `due`, timezone/calendário, cliente de tasks). Sem Cypress/Playwright.
 
 ## Decisões aprovadas (não reabrir sem necessidade)
 
-- Não persistir `average` nem `status`.
+- Não persistir `average` nem `status` acadêmicos.
 - Aluno autenticado acessa só os próprios dados.
+- `tasks` ≠ `assessments`; não fundir automaticamente.
+- Sem coluna `type`, `progress` ou `status` em tasks.
+- Sem timezone persistido por task.
 - Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta), rate limiting.
 
 ## Git
@@ -94,6 +126,7 @@ docker compose up -d
 npm install
 npm run db:migrate
 npm run db:seed
+npm run db:test:prepare
 npm run dev:api
 npm run dev:web
 npm test
@@ -103,21 +136,10 @@ Verificar: `docker compose ps` (healthy, `5433->5432`), `curl http://localhost:3
 
 Não usar `docker compose down -v`.
 
-## Fora da V1 / próximo passo
+Mutações via curl precisam de header `Origin` igual a `CORS_ORIGIN` (em dev: `http://localhost:3000`).
 
-Portal do professor, admin, cadastro, edição de notas, PWA, i18n, tema claro, deploy.
+## Fora da V1/V2 / próximo passo
 
-**Próximo passo:** V2 — tarefas e agenda acadêmica.
+Portal do professor, admin, cadastro, edição de notas, IA, PWA, i18n, tema claro, deploy, recorrência, subtasks, tags, sincronização task ↔ assessment.
 
-## Direção inicial da V2
-
-A V2 adicionará tarefas manuais e agenda acadêmica.
-
-Princípio inicial:
-- `tasks` representa organização pessoal do aluno.
-- `assessments` continua representando avaliações acadêmicas/notas.
-- Não fundir tasks e assessments automaticamente.
-- Uma tarefa pode opcionalmente estar associada a uma disciplina.
-- A integração entre tarefas e avaliações pode ser estudada futuramente, mas não deve ser presumida na primeira implementação da V2.
-
-A V2 ainda deve ser planejada antes de qualquer migration ou implementação.
+**Não iniciar V3 automaticamente.**

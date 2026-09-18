@@ -7,7 +7,7 @@ export function useAcademicQuery<T>(path: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [resolvedPath, setResolvedPath] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   const reload = useCallback(() => {
@@ -21,14 +21,12 @@ export function useAcademicQuery<T>(path: string | null) {
       setData(null);
       setError(null);
       setErrorCode("NOT_FOUND");
-      setLoading(false);
+      setResolvedPath(null);
       return;
     }
 
-    setLoading(true);
     setError(null);
     setErrorCode(null);
-    setData(null);
 
     api<T>(path)
       .then((result) => {
@@ -37,7 +35,7 @@ export function useAcademicQuery<T>(path: string | null) {
         }
 
         setData(result);
-        setLoading(false);
+        setResolvedPath(path);
       })
       .catch((caught) => {
         if (cancelled) {
@@ -50,13 +48,16 @@ export function useAcademicQuery<T>(path: string | null) {
 
         setError(errorMessage(caught));
         setErrorCode(caught instanceof ApiError ? caught.code : "NETWORK_ERROR");
-        setLoading(false);
+        setData(null);
+        setResolvedPath(path);
       });
 
     return () => {
       cancelled = true;
     };
   }, [path, reloadKey]);
+
+  const loading = Boolean(path) && resolvedPath !== path && !error;
 
   return { data, error, errorCode, loading, reload };
 }

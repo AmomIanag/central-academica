@@ -27,10 +27,27 @@ if (sessionSecret.length < SESSION_SECRET_MIN_LENGTH) {
   throw new Error(`SESSION_SECRET must be at least ${SESSION_SECRET_MIN_LENGTH} characters`);
 }
 
+const nodeEnv = process.env.NODE_ENV ?? "development";
+const databaseUrl = required("DATABASE_URL");
+const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+
 export const env = {
-  nodeEnv: process.env.NODE_ENV ?? "development",
+  nodeEnv,
   port,
-  databaseUrl: required("DATABASE_URL"),
+  databaseUrl,
+  testDatabaseUrl,
   corsOrigin: required("CORS_ORIGIN"),
   sessionSecret,
 };
+
+export function runtimeDatabaseUrl(): string {
+  if (nodeEnv === "test") {
+    if (!testDatabaseUrl) {
+      throw new Error("Missing required environment variable: TEST_DATABASE_URL");
+    }
+
+    return testDatabaseUrl;
+  }
+
+  return databaseUrl;
+}

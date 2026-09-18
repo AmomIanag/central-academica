@@ -74,7 +74,7 @@ export default function LoginPage() {
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-accent-label">FIAP</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Central Acadêmica</h1>
         <p className="mt-2 text-sm text-muted">
-          Entre com seu e-mail institucional para ver notas e disciplinas.
+          Entre com seu e-mail institucional para ver notas, tarefas e a agenda.
         </p>
 
         <form

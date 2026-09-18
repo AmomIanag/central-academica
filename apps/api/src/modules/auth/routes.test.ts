@@ -1,7 +1,8 @@
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../app";
 import { pool } from "../../db/pool";
+import { withOrigin } from "../../test/http";
 import { SESSION_COOKIE_NAME } from "./session";
 
 const SEED_EMAIL = "aluno@central.local";
@@ -9,10 +10,6 @@ const SEED_PASSWORD = "dev-aluno-123";
 
 afterEach(async () => {
   await pool.query("DELETE FROM session");
-});
-
-afterAll(async () => {
-  await pool.end();
 });
 
 describe("auth routes", () => {
@@ -37,11 +34,11 @@ describe("auth routes", () => {
   });
 
   it("rejects invalid login bodies with the error contract", async () => {
-    const invalidEmail = await request(app).post("/auth/login").send({
+    const invalidEmail = await withOrigin(request(app).post("/auth/login")).send({
       email: "not-an-email",
       password: SEED_PASSWORD,
     });
-    const missingPassword = await request(app).post("/auth/login").send({
+    const missingPassword = await withOrigin(request(app).post("/auth/login")).send({
       email: SEED_EMAIL,
     });
 
@@ -56,11 +53,11 @@ describe("auth routes", () => {
   });
 
   it("does not distinguish unknown email from a wrong password", async () => {
-    const unknownEmail = await request(app).post("/auth/login").send({
+    const unknownEmail = await withOrigin(request(app).post("/auth/login")).send({
       email: "nobody@central.local",
       password: SEED_PASSWORD,
     });
-    const wrongPassword = await request(app).post("/auth/login").send({
+    const wrongPassword = await withOrigin(request(app).post("/auth/login")).send({
       email: SEED_EMAIL,
       password: "wrong-password",
     });
@@ -77,13 +74,14 @@ describe("auth routes", () => {
   });
 
   it("logs in the seed student, regenerates the session, and omits the password hash", async () => {
-    const response = await request(app)
-      .post("/auth/login")
-      .set("Cookie", `${SESSION_COOKIE_NAME}=s%3Aattacker-session.signature`)
-      .send({
-        email: "  Aluno@Central.Local  ",
-        password: SEED_PASSWORD,
-      });
+    const response = await withOrigin(
+      request(app)
+        .post("/auth/login")
+        .set("Cookie", `${SESSION_COOKIE_NAME}=s%3Aattacker-session.signature`),
+    ).send({
+      email: "  Aluno@Central.Local  ",
+      password: SEED_PASSWORD,
+    });
 
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({
@@ -113,7 +111,7 @@ describe("auth routes", () => {
     expect(anonymous.body.error.code).toBe("UNAUTHENTICATED");
 
     const agent = request.agent(app);
-    await agent.post("/auth/login").send({
+    await withOrigin(agent.post("/auth/login")).send({
       email: SEED_EMAIL,
       password: SEED_PASSWORD,
     });
@@ -128,12 +126,12 @@ describe("auth routes", () => {
 
   it("destroys the session and clears the cookie on logout", async () => {
     const agent = request.agent(app);
-    await agent.post("/auth/login").send({
+    await withOrigin(agent.post("/auth/login")).send({
       email: SEED_EMAIL,
       password: SEED_PASSWORD,
     });
 
-    const logout = await agent.post("/auth/logout");
+    const logout = await withOrigin(agent.post("/auth/logout"));
     const me = await agent.get("/auth/me");
     const logoutCookie = logout.headers["set-cookie"];
     const cookieHeader = Array.isArray(logoutCookie) ? logoutCookie.join(";") : String(logoutCookie);

@@ -10,6 +10,7 @@
     "dev:web": "npm run dev --workspace=web",
     "db:migrate": "npm run db:migrate --workspace=api",
     "db:seed": "npm run db:seed --workspace=api",
+    "db:test:prepare": "npm run db:test:prepare --workspace=api",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

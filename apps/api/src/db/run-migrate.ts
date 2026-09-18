@@ -15,8 +15,6 @@ const result = spawnSync(
     "up",
     "--migrations-dir",
     path.join(apiRoot, "migrations"),
-    "--envPath",
-    path.join(apiRoot, ".env"),
   ],
   {
     cwd: apiRoot,

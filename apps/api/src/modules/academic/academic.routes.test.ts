@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../app";
 import { pool } from "../../db/pool";
+import { withOrigin } from "../../test/http";
 import { hashPassword } from "../auth/password";
 
 const SEED_EMAIL = "aluno@central.local";
@@ -26,7 +27,7 @@ function expectFiniteNumber(value: unknown): asserts value is number {
 
 async function login(email: string, password: string) {
   const agent = request.agent(app);
-  const response = await agent.post("/auth/login").send({ email, password });
+  const response = await withOrigin(agent.post("/auth/login")).send({ email, password });
   expect(response.status).toBe(200);
   return agent;
 }
@@ -44,7 +45,6 @@ afterEach(async () => {
 
 afterAll(async () => {
   await cleanupOtherStudent();
-  await pool.end();
 });
 
 describe("academic routes", () => {

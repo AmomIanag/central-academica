@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, LayoutDashboard, LogOut, Menu, X } from "lucide-react";
+import { BookOpen, CalendarDays, LayoutDashboard, ListTodo, LogOut, Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { errorMessage, isUnauthenticated, setUnauthorizedListener } from "@/lib/api";
 import { getCurrentUser, logout as logoutRequest } from "@/lib/auth";
@@ -13,6 +13,8 @@ import { ErrorState, ScreenLoading, Spinner } from "@/components/ui/feedback";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/tarefas", label: "Tarefas", icon: ListTodo },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/notas", label: "Notas", icon: BookOpen },
 ];
 
@@ -22,6 +24,22 @@ function isActive(pathname: string, href: string): boolean {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function pageTitle(pathname: string): string {
+  if (pathname.startsWith("/tarefas")) {
+    return "Tarefas";
+  }
+
+  if (pathname.startsWith("/agenda")) {
+    return "Agenda";
+  }
+
+  if (pathname.startsWith("/notas")) {
+    return "Notas";
+  }
+
+  return "Dashboard";
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -177,7 +195,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const pageTitle = pathname.startsWith("/notas") ? "Notas" : "Dashboard";
+  const pageTitleLabel = pageTitle(pathname);
   const mobileDialog = !desktop && mobileOpen;
 
   return (
@@ -270,7 +288,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <Menu className="h-4 w-4" aria-hidden />
             </button>
-            <h1 className="text-sm font-medium">{pageTitle}</h1>
+            <h1 className="text-sm font-medium">{pageTitleLabel}</h1>
           </div>
 
           <div className="flex items-center gap-3">

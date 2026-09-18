@@ -40,7 +40,10 @@ describe("errorMessage", () => {
     expect(errorMessage(new ApiError(0, "NETWORK_ERROR", "x"))).toBe(
       "Não foi possível conectar à API.",
     );
-    expect(errorMessage(new ApiError(404, "NOT_FOUND", "x"))).toBe("Disciplina não encontrada.");
+    expect(errorMessage(new ApiError(404, "NOT_FOUND", "x"))).toBe("Não encontrado.");
+    expect(errorMessage(new ApiError(403, "CSRF_REJECTED", "x"))).toBe(
+      "A requisição foi rejeitada por segurança. Recarregue a página e tente de novo.",
+    );
   });
 });
 

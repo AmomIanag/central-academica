@@ -114,7 +114,9 @@ export function errorMessage(error: unknown): string {
       case "VALIDATION_ERROR":
         return "Não foi possível validar a requisição.";
       case "NOT_FOUND":
-        return "Disciplina não encontrada.";
+        return "Não encontrado.";
+      case "CSRF_REJECTED":
+        return "A requisição foi rejeitada por segurança. Recarregue a página e tente de novo.";
       case "UNAUTHENTICATED":
         return "Sessão expirada. Entre novamente.";
       case "NETWORK_ERROR":

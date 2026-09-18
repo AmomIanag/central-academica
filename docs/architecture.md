@@ -16,9 +16,9 @@ O Next.js **não** acessa o PostgreSQL e **não** expõe rotas de negócio. O fr
 Aluno → Next.js → HTTP + cookie de sessão → Express → PostgreSQL
 ```
 
-É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1.
+É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1/V2.
 
-Não há `packages/` compartilhados na V1. Tipos do contrato podem ser duplicados de forma consciente até a duplicação doer.
+Não há `packages/` compartilhados na V1/V2. Tipos do contrato podem ser duplicados de forma consciente até a duplicação doer.
 
 ## Persistência
 
@@ -26,11 +26,13 @@ Não há `packages/` compartilhados na V1. Tipos do contrato podem ser duplicado
 - Migrations versionadas com `node-pg-migrate` em `apps/api/migrations`.
 - Scripts na raiz: `npm run db:migrate` e `npm run db:seed` (leem `apps/api/.env`).
 - UUIDs gerados pela aplicação (`crypto.randomUUID()` no código futuro; IDs determinísticos no seed). Sem extensão PostgreSQL só para gerar UUID.
-- Sem Prisma, Drizzle ou TypeORM na V1.
+- Sem Prisma, Drizzle ou TypeORM na V1/V2.
 
-Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, disciplina, matrícula ou avaliação enquanto houver dependentes. Evita perda silenciosa de histórico acadêmico. Sem `CASCADE` na V1.
+Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, disciplina, matrícula, avaliação ou tarefa enquanto houver dependentes. Evita perda silenciosa de histórico acadêmico. Sem `CASCADE` na V1/V2.
 
 `users.email` tem `UNIQUE` e `CHECK (email = lower(email))`. A aplicação (e o seed) persiste lowercase; o banco rejeita e-mail com maiúsculas.
+
+A associação opcional de uma task a disciplina usa FK composta `(user_id, discipline_id)` contra `enrollments`. Uma task só pode apontar para disciplina em que o aluno esteja matriculado, em qualquer período.
 
 ## Autenticação
 
@@ -42,12 +44,13 @@ Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, 
 - `SESSION_SECRET` obrigatório, mínimo 32 caracteres, validado na subida da API.
 - Helmet nos headers HTTP. Sem rate limiting na V1 até ser pedido.
 - CORS com `credentials: true` e origem em `CORS_ORIGIN`.
+- Mutações HTTP (`POST`, `PATCH`, `PUT`, `DELETE`) exigem header `Origin` exatamente igual a `CORS_ORIGIN`. Origin ausente ou inválido responde `403` com código `CSRF_REJECTED`. GET/HEAD/OPTIONS não exigem Origin. Não há token CSRF separado.
 - `POST /auth/login` validado com Zod (e-mail válido, senha presente).
-- Sem JWT, NextAuth, Passport ou Redis na V1.
+- Sem JWT, NextAuth, Passport ou Redis na V1/V2.
 
-Código de auth em `apps/api/src/modules/auth/`. API acadêmica em `modules/dashboard` e `modules/disciplines`. Média/status em `modules/academic/grades.ts`. Middleware `requireAuth` em `src/middlewares`. Envelope HTTP em `src/http`.
+Código de auth em `apps/api/src/modules/auth/`. API acadêmica em `modules/dashboard` e `modules/disciplines`. Tarefas em `modules/tasks`. Média/status em `modules/academic/grades.ts`. Middlewares `requireAuth` e `requireTrustedOrigin` em `src/middlewares`. Envelope HTTP em `src/http`.
 
-Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`. `GET /health` permanece público.
+Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`, `GET /me/tasks`, `POST /me/tasks`, `GET /me/tasks/summary`, `GET /me/tasks/options`, `GET /me/tasks/:id`, `PATCH /me/tasks/:id`, `POST /me/tasks/:id/complete`, `POST /me/tasks/:id/reopen`, `DELETE /me/tasks/:id`. `GET /health` permanece público.
 
 `users.email` é `TEXT`, normalizado para lowercase antes de persistir e no login, com `UNIQUE`. Não usar a extensão `CITEXT`.
 
@@ -66,6 +69,18 @@ Tabelas:
 Não há tabela `students`. Não há colunas `average` nem `status`.
 
 Consistência “avaliação e matrícula da mesma disciplina” fica no service da Etapa 5.
+
+## Tarefas pessoais (V2)
+
+`tasks` representa organização pessoal do aluno. `assessments` continua representando avaliações acadêmicas/notas. Não fundir automaticamente.
+
+- Estado derivado: `completed_at IS NULL` → pending; caso contrário → completed. Não persistir `status`, `type` nem `progress`.
+- Prioridade: `low | normal | high`.
+- Prazo: `due_on DATE` **ou** `due_at TIMESTAMPTZ`, nunca ambos; ambos NULL = sem prazo. `due_on` é data civil (não converter para meia-noite UTC). `due_at` é instante.
+- Contrato HTTP discriminado: `due: null | { kind: "date", date } | { kind: "datetime", at }`.
+- Timezone de agenda/overdue vem da query (`timeZone` IANA). Não persistir timezone por task. Não fixar `America/Sao_Paulo` no banco.
+- Exclusão é hard delete.
+- Agenda é visualização das tasks, não uma entidade. Avaliações não entram automaticamente na agenda da V2.
 
 ## Seed
 
@@ -101,18 +116,19 @@ V1 lê só o termo `is_current = true`. Sem período atual: lista vazia, dashboa
 
 - App Router, layouts `(auth)` e `(app)` quando as páginas existirem.
 - Tailwind + design tokens próprios (dark-first, accent magenta FIAP).
-- Componentes locais. Sem shadcn, Redux, Zustand ou TanStack Query na V1.
+- Componentes locais. Sem shadcn, Redux, Zustand ou TanStack Query na V1/V2.
 - A partir da Etapa 6, se API e banco estiverem no ar, o frontend consome a API real. Sem mocks descartáveis.
 
-Sidebar da V1: apenas Dashboard e Notas, quando esses módulos existirem.
+Sidebar: Dashboard, Tarefas, Agenda e Notas.
 
 ## Desenvolvimento local
 
 - PostgreSQL via Docker Compose (somente o banco), exposto no host em `localhost:5433` (`5433:5432`).
+- Database de desenvolvimento: `central_academica`. Database de testes: `central_academica_test` no mesmo container (`TEST_DATABASE_URL`).
 - API em `http://localhost:3001`
 - Web em `http://localhost:3000`
 - `.env` por app, a partir de `.env.example`. Sem `.env.example` redundante na raiz.
-- Scripts: `npm run dev:api`, `npm run dev:web`, `npm run db:migrate`, `npm run db:seed`. Sem `concurrently` até ser pedido.
+- Scripts: `npm run dev:api`, `npm run dev:web`, `npm run db:migrate`, `npm run db:seed`, `npm run db:test:prepare`. Sem `concurrently` até ser pedido.
 
 Git é controlado manualmente. O agente não deve executar commit, push, branch, reset, clean, add, checkout ou switch.
 
@@ -126,9 +142,10 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 6. Frontend e identidade visual, já contra a API real
 7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo)
 8. Polimento, revisão e suíte final de testes — **V1 concluída**
+9. Tarefas pessoais, agenda e resumo no dashboard — **V2 concluída**
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.
 
-## Fora da V1
+## Fora da V1/V2
 
-Portal do professor, admin completo, catálogo vs oferta, créditos, exame, PWA, i18n, tema claro, filas, WebSockets e estado global.
+Portal do professor, admin completo, catálogo vs oferta, créditos, exame, PWA, i18n, tema claro, filas, WebSockets, estado global, IA, recorrência, subtasks, tags e sincronização task ↔ assessment.

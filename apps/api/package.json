@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx src/db/run-migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "test": "vitest run"
+    "db:test:prepare": "tsx src/db/prepare-test-database.ts",
+    "test": "tsx src/db/prepare-test-database.ts && vitest run"
   },
   "dependencies": {
     "connect-pg-simple": "^10.0.0",
