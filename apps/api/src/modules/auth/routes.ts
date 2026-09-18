@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../../db/pool";
 import { sendData, sendError } from "../../http/response";
 import { requireAuth } from "../../middlewares/require-auth";
+import { loginAccountRateLimiter, loginIpRateLimiter } from "./login-rate-limit";
 import { verifyPasswordOrDummy } from "./password";
 import { loginSchema } from "./schema";
 import {
@@ -35,7 +36,7 @@ function toPublicUser(row: Omit<UserRow, "password_hash">) {
 
 export const authRouter = Router();
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", loginIpRateLimiter, loginAccountRateLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -59,7 +60,7 @@ authRouter.post("/login", async (req, res) => {
     [email],
   );
   const user = result.rows[0] ?? null;
-  const passwordMatches = verifyPasswordOrDummy(password, user?.password_hash ?? null);
+  const passwordMatches = await verifyPasswordOrDummy(password, user?.password_hash ?? null);
 
   if (!user || !passwordMatches) {
     sendError(res, 401, "INVALID_CREDENTIALS", "Invalid email or password.");

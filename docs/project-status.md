@@ -1,6 +1,6 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard). **V2.2 concluída** (gestão acadêmica editável).  
+Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard). **V2.2 concluída** (gestão acadêmica editável). **Security hardening concluído** (exposição local do Postgres, throttling de login, scrypt assíncrono).  
 Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
 
 ## Objetivo
@@ -36,13 +36,13 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 |---|---|
 | web | `http://localhost:3000` |
 | api | `http://localhost:3001` |
-| PostgreSQL **deste projeto** (Docker) | `localhost:5433` → container `5432` |
+| PostgreSQL **deste projeto** (Docker) | `127.0.0.1:5433` → container `5432` |
 
 O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado, migrado nem alterado**.  
 `DATABASE_URL` da API aponta para `localhost:5433` / `central_academica`.  
 `TEST_DATABASE_URL` aponta para o mesmo Postgres Docker, database `central_academica_test`.
 
-`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`.
+`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`. Em produção, `NODE_ENV=production` é obrigatório (cookie `Secure`) e os placeholders de desenvolvimento de `SESSION_SECRET` / credenciais `central`/`central` são recusados na subida da API.
 
 ## Etapas
 
@@ -58,6 +58,7 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | 8. Polimento, testes e entrega | **Concluída — V1 fechada** |
 | V2. Tarefas, agenda e dashboard | **Concluída** |
 | V2.2. Gestão acadêmica | **Concluída** |
+| Security hardening | **Concluído** |
 
 ## Banco
 
@@ -83,13 +84,16 @@ Testes da API usam `central_academica_test` no mesmo container Docker (`localhos
 
 - Variável: `TEST_DATABASE_URL`
 - Preparação: `npm run db:test:prepare` (também roda no início de `npm test` da API)
+- Configuração canônica: `apps/api/vitest.config.mts` (setup obrigatório com `assertTestDatabase`)
 - Antes de limpeza destrutiva, a suíte valida que a URL aponta inequivocamente para `central_academica_test`
 
 Não usar o PostgreSQL do Windows em `5432`. Não executar `docker compose down -v`.
 
 ## Auth e CSRF
 
-Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção). Helmet ligado. Login com Zod + scrypt (`timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
+Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só quando `NODE_ENV=production`). Helmet ligado. Login com Zod + scrypt **assíncrono** (`crypto.scrypt`, `timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
+
+`POST /auth/login` tem throttling em memória do processo: limite por IP/origem e limite por e-mail normalizado. Estouro responde `429` `TOO_MANY_REQUESTS` com a mesma mensagem genérica, exista ou não a conta. O store atual **não é compartilhado entre instâncias**; deploy multi-instância exigirá um store distribuído. Sem Redis neste pass.
 
 Mutações (POST/PATCH/PUT/DELETE), inclusive login/logout e a gestão acadêmica, exigem Origin confiável. Sem token CSRF separado.
 
@@ -110,7 +114,7 @@ Agenda é visualização das tasks (hoje, semana, mês, próximas, sem prazo). A
 - API: Vitest + Supertest (auth, CSRF, sessão, média anual/status, CRUD acadêmico, presença, tasks, isolamento, 404). Script: `npm test` (prepara o database de teste).
 - web: Vitest (formatação, erros HTTP, contrato de `due`, timezone/calendário, cliente de tasks). Sem Cypress/Playwright.
 
-Total atual: **90 testes** (71 API + 19 web).
+Total atual: **103 testes** (84 API + 19 web).
 
 ## Decisões aprovadas (não reabrir sem necessidade)
 
@@ -119,7 +123,8 @@ Total atual: **90 testes** (71 API + 19 web).
 - `tasks` ≠ `assessments`; não fundir automaticamente.
 - Sem coluna `type`, `progress` ou `status` em tasks.
 - Sem timezone persistido por task.
-- Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta), rate limiting.
+- Sem JWT, Redis, Auth.js/NextAuth, Passport, `cookie-parser` (salvo necessidade concreta).
+- Rate limiting de login é process-local (`express-rate-limit` + MemoryStore). Multi-instância exigirá store compartilhado.
 - Pesos CP/GS e dos semestres são regra de negócio fixa; o aluno não edita pesos.
 - Sem fórmula pós-exame e sem reprovação por frequência nesta versão.
 
@@ -140,7 +145,7 @@ npm run dev:web
 npm test
 ```
 
-Verificar: `docker compose ps` (healthy, `5433->5432`), `curl http://localhost:3001/health`, `npm run lint`, `npm run typecheck`.
+Verificar: `docker compose ps` (healthy, `127.0.0.1:5433->5432`), `curl http://localhost:3001/health`, `npm run lint`, `npm run typecheck`.
 
 Não usar `docker compose down -v`.
 

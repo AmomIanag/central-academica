@@ -156,7 +156,7 @@ describe("academic routes", () => {
         OTHER.userId,
         "Outro Aluno",
         OTHER.email,
-        hashPassword(OTHER.password),
+        await hashPassword(OTHER.password),
         "RM999999",
         "Análise e Desenvolvimento de Sistemas",
         "student",

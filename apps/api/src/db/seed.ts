@@ -120,7 +120,7 @@ async function seed(): Promise<void> {
         IDS.user,
         "Aluno Teste",
         "amom.admin@central.local",
-        hashPassword(DEV_PASSWORD, DEV_PASSWORD_SALT),
+        await hashPassword(DEV_PASSWORD, DEV_PASSWORD_SALT),
         "RM000000",
         "Análise e Desenvolvimento de Sistemas",
         "student",

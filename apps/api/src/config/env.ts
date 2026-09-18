@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import path from "node:path";
+import { assertProductionConfiguration } from "./production-guards";
 
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
@@ -30,6 +31,12 @@ if (sessionSecret.length < SESSION_SECRET_MIN_LENGTH) {
 const nodeEnv = process.env.NODE_ENV ?? "development";
 const databaseUrl = required("DATABASE_URL");
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+
+assertProductionConfiguration({
+  nodeEnv,
+  sessionSecret,
+  databaseUrl,
+});
 
 export const env = {
   nodeEnv,

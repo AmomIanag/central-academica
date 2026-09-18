@@ -3,6 +3,7 @@ import express from "express";
 import type { NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import { env } from "./config/env";
+import { JSON_BODY_LIMIT } from "./config/http";
 import { pool } from "./db/pool";
 import { AppError } from "./http/app-error";
 import { sendError } from "./http/response";
@@ -22,7 +23,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(requireTrustedOrigin);
 app.use(sessionMiddleware);
 
@@ -56,6 +57,11 @@ app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
+  if (isPayloadTooLarge(error)) {
+    sendError(res, 413, "PAYLOAD_TOO_LARGE", "O corpo da requisição excede o tamanho permitido.");
+    return;
+  }
+
   if (error instanceof SyntaxError) {
     sendError(res, 400, "VALIDATION_ERROR", "Invalid JSON body.");
     return;
@@ -69,3 +75,12 @@ app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
   console.error(error);
   sendError(res, 500, "INTERNAL_ERROR", "Internal server error.");
 });
+
+function isPayloadTooLarge(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const candidate = error as { status?: unknown; statusCode?: unknown; type?: unknown };
+  return candidate.status === 413 || candidate.statusCode === 413 || candidate.type === "entity.too.large";
+}

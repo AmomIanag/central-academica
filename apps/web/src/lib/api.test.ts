@@ -47,6 +47,10 @@ describe("errorMessage", () => {
     expect(errorMessage(new ApiError(409, "CONFLICT", "x"))).toBe(
       "Não foi possível concluir a operação por um conflito. Verifique as tarefas vinculadas e tente de novo.",
     );
+    expect(errorMessage(new ApiError(429, "TOO_MANY_REQUESTS", "x"))).toBe(
+      "Muitas tentativas de login. Tente novamente em instantes.",
+    );
+    expect(errorMessage(new ApiError(413, "PAYLOAD_TOO_LARGE", "x"))).toBe("A requisição é grande demais.");
   });
 });
 

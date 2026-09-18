@@ -37,12 +37,14 @@ A associação opcional de uma task a disciplina usa FK composta `(user_id, disc
 ## Autenticação
 
 - Sessão server-side com `express-session` + `connect-pg-simple`, persistida na tabela `session`.
-- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só em produção.
+- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Secure` somente quando `NODE_ENV=production` (obrigatório no deploy).
 - Não usar `cookie-parser` salvo necessidade concreta: `express-session` já gerencia o cookie.
 - Após login bem-sucedido, regenerar a sessão **antes** de associar `userId` e salvar a sessão antes da resposta.
-- Senhas com `scrypt` via `node:crypto` (formato `scrypt$N$r$p$salt$key`); comparação com `timingSafeEqual`. Login não distingue e-mail inexistente de senha incorreta.
-- `SESSION_SECRET` obrigatório, mínimo 32 caracteres, validado na subida da API.
-- Helmet nos headers HTTP. Sem rate limiting na V1 até ser pedido.
+- Senhas com `scrypt` **assíncrono** via `node:crypto` (`crypto.scrypt`, formato `scrypt$N$r$p$salt$key`); comparação com `timingSafeEqual`. Login não distingue e-mail inexistente de senha incorreta (caminho dummy de KDF para conta inexistente).
+- `SESSION_SECRET` obrigatório, mínimo 32 caracteres, validado na subida da API. Com `NODE_ENV=production`, a API recusa o placeholder documentado de `SESSION_SECRET` e as credenciais de banco `central`/`central`.
+- Helmet nos headers HTTP.
+- `POST /auth/login` tem rate limiting em memória do processo (`express-rate-limit`): 20 tentativas / 15 min por IP e 10 falhas / 15 min por e-mail normalizado. `429` `TOO_MANY_REQUESTS` com mensagem genérica. O store **não é compartilhado entre instâncias**; um deploy multi-instância exigirá store distribuído. `trust proxy` permanece desligado até a topologia de produção ser definida.
+- E-mail de login limitado a 254 caracteres; senha a 256. Corpo JSON da API limitado a 32kb.
 - CORS com `credentials: true` e origem em `CORS_ORIGIN`.
 - Mutações HTTP (`POST`, `PATCH`, `PUT`, `DELETE`) exigem header `Origin` exatamente igual a `CORS_ORIGIN`. Origin ausente ou inválido responde `403` com código `CSRF_REJECTED`. GET/HEAD/OPTIONS não exigem Origin. Não há token CSRF separado.
 - `POST /auth/login` validado com Zod (e-mail válido, senha presente).
@@ -133,7 +135,7 @@ Sidebar: Dashboard, Tarefas, Agenda e Notas.
 
 ## Desenvolvimento local
 
-- PostgreSQL via Docker Compose (somente o banco), exposto no host em `localhost:5433` (`5433:5432`).
+- PostgreSQL via Docker Compose (somente o banco), publicado no host apenas em loopback: `127.0.0.1:5433:5432`. Acesso local continua em `localhost:5433`.
 - Database de desenvolvimento: `central_academica`. Database de testes: `central_academica_test` no mesmo container (`TEST_DATABASE_URL`).
 - API em `http://localhost:3001`
 - Web em `http://localhost:3000`
@@ -154,6 +156,7 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 8. Polimento, revisão e suíte final de testes — **V1 concluída**
 9. Tarefas pessoais, agenda e resumo no dashboard — **V2 concluída**
 10. Gestão acadêmica editável (disciplinas, notas CP/GS, presença) — **V2.2 concluída**
+11. Security hardening — **concluído** (Postgres em loopback, throttling de login, scrypt assíncrono, limites de recurso, Vitest canônico)
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.
 

@@ -1,6 +1,6 @@
 # Central Acadêmica FIAP
 
-Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A **V1** entrega o módulo de **notas**. A **V2** adiciona **tarefas pessoais**, **agenda** e um resumo de tarefas no dashboard. A **V2.2** torna a área acadêmica **editável**, com disciplinas, notas CP/GS, média anual e presença.
+Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A **V1** entrega o módulo de **notas**. A **V2** adiciona **tarefas pessoais**, **agenda** e um resumo de tarefas no dashboard. A **V2.2** torna a área acadêmica **editável**, com disciplinas, notas CP/GS, média anual e presença. Um pass de **security hardening** endureceu a exposição do PostgreSQL de desenvolvimento, o login e o KDF de senha, sem mudar a funcionalidade do produto.
 
 ## Screenshot
 
@@ -83,6 +83,8 @@ Os arquivos `.env` não devem ser commitados.
 `DATABASE_URL` aponta para o database de desenvolvimento (`central_academica`).  
 `TEST_DATABASE_URL` aponta para o database de testes (`central_academica_test`) no **mesmo** PostgreSQL Docker.
 
+Em produção, `NODE_ENV=production` é obrigatório (o cookie `Secure` depende disso). `SESSION_SECRET` e as credenciais do banco devem ser únicos — a API recusa os placeholders documentados de desenvolvimento quando `NODE_ENV=production`.
+
 ## Docker / PostgreSQL
 
 Suba somente o banco, com volume persistente:
@@ -91,16 +93,16 @@ Suba somente o banco, com volume persistente:
 docker compose up -d
 ```
 
-Credenciais locais (não são de produção):
+Credenciais locais (não são de produção e **nunca** devem ser reutilizadas em produção):
 
-- host: `localhost`
-- porta: `5433` (mapeada para `5432` dentro do container)
+- host: `localhost` / `127.0.0.1`
+- porta: `5433` (publicada apenas em loopback: `127.0.0.1:5433:5432`)
 - usuário: `central`
 - senha: `central`
 - database de desenvolvimento: `central_academica`
 - database de testes: `central_academica_test`
 
-A porta `5433` no host evita conflito com um PostgreSQL instalado na máquina na porta padrão `5432`. Não altere o serviço local; a API e as migrations deste projeto usam `localhost:5433`.
+A porta `5433` no host evita conflito com um PostgreSQL instalado na máquina na porta padrão `5432`. O bind em `127.0.0.1` impede acesso de outros hosts da rede local. Não altere o serviço Windows; a API e as migrations deste projeto usam `localhost:5433`.
 
 Não use `docker compose down -v` — isso apaga o volume do banco do projeto.
 
@@ -201,10 +203,10 @@ npm run build --workspace=web
 npm test
 ```
 
-- **API:** Vitest + Supertest (auth, CSRF, sessão, média anual/status, CRUD acadêmico, presença, tarefas, isolamento entre alunos). Usam `TEST_DATABASE_URL` (`central_academica_test` em `localhost:5433`). Recusam o database de desenvolvimento. `npm test` prepara o database de teste antes de executar.
+- **API:** Vitest + Supertest (auth, CSRF, sessão, throttling de login, média anual/status, CRUD acadêmico, presença, tarefas, isolamento entre alunos). Usam `TEST_DATABASE_URL` (`central_academica_test` em `localhost:5433`). Recusam o database de desenvolvimento. `npm test` prepara o database de teste antes de executar. A configuração canônica é `apps/api/vitest.config.mts`, com setup que valida o database de teste e limpa só ele.
 - **web:** Vitest (formatação, erros HTTP, contrato de `due` e cliente de tasks). Sem Cypress/Playwright.
 
-Total: 90 testes (71 API + 19 web).
+Total: 103 testes (84 API + 19 web).
 
 ## Endpoints principais
 
@@ -242,6 +244,8 @@ Sucesso: `{ "data": ... }`. Erro: `{ "error": { "code", "message", "details?" } 
 **V2 concluída.** Tarefas pessoais, agenda e resumo de tarefas no dashboard estão implementados, testados e documentados.
 
 **V2.2 concluída.** Gestão acadêmica: CRUD de disciplinas, edição de notas CP/GS (escala 0–100), MD1/MD2/MP, situação derivada e presença. Sem fórmula pós-exame.
+
+**Security hardening concluído.** Porta PostgreSQL de desenvolvimento em loopback, throttling de login, scrypt assíncrono, limites de payload/senha e guarda de placeholders de produção. Sem mudança de funcionalidade do produto.
 
 ## Roadmap
 

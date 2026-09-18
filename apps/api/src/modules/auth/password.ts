@@ -1,9 +1,10 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 64;
+const DUMMY_PASSWORD = "__central-academica-dummy__";
 
 function deriveKey(
   password: string,
@@ -12,16 +13,25 @@ function deriveKey(
   N: number,
   r: number,
   p: number,
-): Buffer {
-  return scryptSync(password, salt, keylen, { N, r, p });
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scryptCallback(password, salt, keylen, { N, r, p }, (error, derivedKey) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(derivedKey);
+    });
+  });
 }
 
-export function hashPassword(password: string, salt: Buffer = randomBytes(16)): string {
-  const key = deriveKey(password, salt, SCRYPT_KEYLEN, SCRYPT_N, SCRYPT_R, SCRYPT_P);
+export async function hashPassword(password: string, salt: Buffer = randomBytes(16)): Promise<string> {
+  const key = await deriveKey(password, salt, SCRYPT_KEYLEN, SCRYPT_N, SCRYPT_R, SCRYPT_P);
   return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt.toString("hex")}$${key.toString("hex")}`;
 }
 
-const DUMMY_HASH = hashPassword("__central-academica-dummy__");
+const dummyHashPromise = hashPassword(DUMMY_PASSWORD);
 
 type ParsedHash = {
   N: number;
@@ -51,7 +61,7 @@ function parseHash(stored: string): ParsedHash | null {
   return { N, r, p, salt, key };
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parsed = parseHash(stored);
 
   if (!parsed) {
@@ -59,7 +69,7 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 
   try {
-    const derived = deriveKey(password, parsed.salt, parsed.key.length, parsed.N, parsed.r, parsed.p);
+    const derived = await deriveKey(password, parsed.salt, parsed.key.length, parsed.N, parsed.r, parsed.p);
 
     if (derived.length !== parsed.key.length) {
       return false;
@@ -71,7 +81,7 @@ export function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
-export function verifyPasswordOrDummy(password: string, storedHash: string | null): boolean {
-  const matches = verifyPassword(password, storedHash ?? DUMMY_HASH);
+export async function verifyPasswordOrDummy(password: string, storedHash: string | null): Promise<boolean> {
+  const matches = await verifyPassword(password, storedHash ?? (await dummyHashPromise));
   return storedHash !== null && matches;
 }

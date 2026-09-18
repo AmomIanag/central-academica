@@ -121,6 +121,10 @@ export function errorMessage(error: unknown): string {
         return "Não foi possível concluir a operação por um conflito. Verifique as tarefas vinculadas e tente de novo.";
       case "UNAUTHENTICATED":
         return "Sessão expirada. Entre novamente.";
+      case "TOO_MANY_REQUESTS":
+        return "Muitas tentativas de login. Tente novamente em instantes.";
+      case "PAYLOAD_TOO_LARGE":
+        return "A requisição é grande demais.";
       case "NETWORK_ERROR":
         return "Não foi possível conectar à API.";
       default:

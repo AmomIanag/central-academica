@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../app";
+import { JSON_BODY_LIMIT_BYTES } from "../../config/http";
 import { pool } from "../../db/pool";
 import { SEED_EMAIL, SEED_PASSWORD } from "../../test/credentials";
 import { withOrigin } from "../../test/http";
+import { LOGIN_RATE_LIMIT, resetLoginRateLimiters } from "./login-rate-limit";
+import { AUTH_PASSWORD_MAX_LENGTH, loginSchema } from "./schema";
 import { SESSION_COOKIE_NAME } from "./session";
 
 afterEach(async () => {
@@ -139,5 +142,120 @@ describe("auth routes", () => {
     expect(cookieHeader).toContain(`${SESSION_COOKIE_NAME}=`);
     expect(me.status).toBe(401);
     expect(me.body.error.code).toBe("UNAUTHENTICATED");
+  });
+});
+
+const RATE_LIMITED_ERROR = {
+  code: "TOO_MANY_REQUESTS",
+  message: "Muitas tentativas de login. Tente novamente em instantes.",
+};
+
+async function sendLogin(email: string, password: string) {
+  return withOrigin(request(app).post("/auth/login")).send({ email, password });
+}
+
+describe("login throttling", () => {
+  afterEach(async () => {
+    await resetLoginRateLimiters();
+  });
+
+  it("keeps a valid login working after unrelated failed attempts are reset", async () => {
+    const failed = await sendLogin(SEED_EMAIL, "wrong-password");
+    expect(failed.status).toBe(401);
+
+    await resetLoginRateLimiters();
+
+    const success = await sendLogin(SEED_EMAIL, SEED_PASSWORD);
+    expect(success.status).toBe(200);
+    expect(success.body.data.email).toBe(SEED_EMAIL);
+  });
+
+  it("returns 429 after repeated failed attempts against the same account", async () => {
+    const responses = [];
+
+    for (let attempt = 0; attempt < LOGIN_RATE_LIMIT.accountLimit; attempt += 1) {
+      responses.push(await sendLogin(SEED_EMAIL, "wrong-password"));
+    }
+
+    const limited = await sendLogin(SEED_EMAIL, "wrong-password");
+    const limitedExisting = await sendLogin(SEED_EMAIL, SEED_PASSWORD);
+
+    expect(responses.every((response) => response.status === 401)).toBe(true);
+    expect(limited.status).toBe(429);
+    expect(limited.body.error).toEqual(RATE_LIMITED_ERROR);
+    expect(limitedExisting.status).toBe(429);
+    expect(limitedExisting.body.error).toEqual(RATE_LIMITED_ERROR);
+  }, 60_000);
+
+  it("applies the same limit to a nonexistent account without revealing that it is missing", async () => {
+    const missingEmail = "missing.aluno@central.local";
+    const responses = [];
+
+    for (let attempt = 0; attempt < LOGIN_RATE_LIMIT.accountLimit; attempt += 1) {
+      responses.push(await sendLogin(missingEmail, "wrong-password"));
+    }
+
+    const limitedMissing = await sendLogin(missingEmail, "wrong-password");
+    const limitedExisting = await sendLogin(SEED_EMAIL, "wrong-password");
+
+    expect(responses.every((response) => response.status === 401)).toBe(true);
+    expect(limitedMissing.status).toBe(429);
+    expect(limitedMissing.body.error).toEqual(RATE_LIMITED_ERROR);
+    expect(limitedExisting.status).toBe(401);
+    expect(limitedExisting.body.error).toEqual({
+      code: "INVALID_CREDENTIALS",
+      message: "Invalid email or password.",
+    });
+  }, 60_000);
+
+  it("limits credential spraying from one origin after the IP threshold", async () => {
+    const responses = [];
+
+    for (let attempt = 0; attempt < LOGIN_RATE_LIMIT.ipLimit; attempt += 1) {
+      responses.push(await sendLogin(`spray.${attempt}@central.local`, "wrong-password"));
+    }
+
+    const limited = await sendLogin("spray.last@central.local", "wrong-password");
+
+    expect(responses.every((response) => response.status === 401)).toBe(true);
+    expect(limited.status).toBe(429);
+    expect(limited.body.error).toEqual(RATE_LIMITED_ERROR);
+    expect(limited.body.error).not.toHaveProperty("details");
+  }, 60_000);
+});
+
+describe("auth resource limits", () => {
+  it("accepts a password at the maximum length and still authenticates with the generic contract", async () => {
+    const response = await sendLogin(SEED_EMAIL, "p".repeat(AUTH_PASSWORD_MAX_LENGTH));
+
+    expect(loginSchema.safeParse({ email: SEED_EMAIL, password: "p".repeat(AUTH_PASSWORD_MAX_LENGTH) }).success).toBe(
+      true,
+    );
+    expect(response.status).toBe(401);
+    expect(response.body.error).toEqual({
+      code: "INVALID_CREDENTIALS",
+      message: "Invalid email or password.",
+    });
+  });
+
+  it("rejects a password beyond the maximum length", async () => {
+    const response = await sendLogin(SEED_EMAIL, "p".repeat(AUTH_PASSWORD_MAX_LENGTH + 1));
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(response.body.error.details.password).toBeDefined();
+  });
+
+  it("rejects an oversized JSON body", async () => {
+    const response = await withOrigin(request(app).post("/auth/login")).send({
+      email: SEED_EMAIL,
+      password: "p".repeat(JSON_BODY_LIMIT_BYTES),
+    });
+
+    expect(response.status).toBe(413);
+    expect(response.body.error).toEqual({
+      code: "PAYLOAD_TOO_LARGE",
+      message: "O corpo da requisição excede o tamanho permitido.",
+    });
   });
 });

@@ -44,7 +44,7 @@ async function ensureOtherStudent(): Promise<void> {
       OTHER.userId,
       "Outro Aluno Tasks",
       OTHER.email,
-      hashPassword(OTHER.password),
+      await hashPassword(OTHER.password),
       "RM888888",
       "Análise e Desenvolvimento de Sistemas",
       "student",

@@ -315,7 +315,7 @@ describe("academic write routes", () => {
         OTHER.userId,
         "Outro Aluno",
         OTHER.email,
-        hashPassword(OTHER.password),
+        await hashPassword(OTHER.password),
         "RM777777",
         "Análise e Desenvolvimento de Sistemas",
         "student",
