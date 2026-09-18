@@ -1,6 +1,6 @@
 # Central Acadêmica FIAP
 
-Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A **V1** entrega o módulo de **notas**. A **V2** adiciona **tarefas pessoais**, **agenda** e um resumo de tarefas no dashboard. A **V2.2** torna a área acadêmica **editável**, com disciplinas, notas CP/GS, média anual e presença. Um pass de **security hardening** endureceu a exposição do PostgreSQL de desenvolvimento, o login e o KDF de senha, sem mudar a funcionalidade do produto.
+Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A **V1** entrega o módulo de **notas**. A **V2** adiciona **tarefas pessoais**, **agenda** e um resumo de tarefas no dashboard. A **V2.2** torna a área acadêmica **editável**, com disciplinas, notas CP/GS, média anual e presença. Um pass de **security hardening** endureceu a exposição do PostgreSQL de desenvolvimento, o login e o KDF de senha, sem mudar a funcionalidade do produto. O **Deployment Prep** deixou o repositório pronto para o primeiro deploy guiado (Vercel → Railway → Supabase PostgreSQL); a infraestrutura de produção ainda **não** foi criada.
 
 ## Screenshot
 
@@ -33,6 +33,8 @@ Aluno → Next.js → HTTP + cookie de sessão → Express → PostgreSQL
 
 O frontend não acessa o banco. A API Express é a única camada de negócio.
 
+Deploy-alvo (ainda não provisionado): browser na Vercel, com rewrite same-origin `/api` → API no Railway → PostgreSQL no Supabase (somente banco). Desenvolvimento local continua `localhost:3000` → `localhost:3001` → Docker `localhost:5433`.
+
 ## Estrutura
 
 ```
@@ -44,7 +46,7 @@ central-academica-fiap/
 
 ## Requisitos
 
-- Node.js 20 ou superior
+- Node.js **24.x** (`.nvmrc` e `engines.node`)
 - npm 10 ou superior (vem com o Node)
 - Docker Desktop (ou Docker Engine + Compose), para o PostgreSQL de desenvolvimento
 - No Windows, o Docker Desktop normalmente exige WSL 2
@@ -77,13 +79,17 @@ Os arquivos `.env` não devem ser commitados.
 
 | App | Variáveis |
 |---|---|
-| API | `PORT`, `DATABASE_URL`, `TEST_DATABASE_URL`, `CORS_ORIGIN`, `SESSION_SECRET` (mínimo 32 caracteres) |
-| web | `NEXT_PUBLIC_API_URL` |
+| API (dev) | `PORT`, `DATABASE_URL`, `TEST_DATABASE_URL`, `CORS_ORIGIN`, `SESSION_SECRET` (mínimo 32 caracteres), `TRUST_PROXY_HOPS` (padrão `0`) |
+| API (produção) | `NODE_ENV=production`, `PORT` (plataforma), `DATABASE_URL`, `SESSION_SECRET`, `CORS_ORIGIN` (origem HTTPS do frontend), `TRUST_PROXY_HOPS` (só depois de validar o Railway) |
+| web (dev) | `NEXT_PUBLIC_API_URL=http://localhost:3001` |
+| web (produção) | `NEXT_PUBLIC_API_URL=/api`, `API_PROXY_TARGET` (origem da API; server-side) |
 
 `DATABASE_URL` aponta para o database de desenvolvimento (`central_academica`).  
-`TEST_DATABASE_URL` aponta para o database de testes (`central_academica_test`) no **mesmo** PostgreSQL Docker.
+`TEST_DATABASE_URL` aponta para o database de testes (`central_academica_test`) no **mesmo** PostgreSQL Docker e **não** é usado em produção.
 
-Em produção, `NODE_ENV=production` é obrigatório (o cookie `Secure` depende disso). `SESSION_SECRET` e as credenciais do banco devem ser únicos — a API recusa os placeholders documentados de desenvolvimento quando `NODE_ENV=production`.
+`MIGRATION_DATABASE_URL` é só para `npm run db:migrate:prod`. A API não exige essa variável na subida.
+
+Em produção, `NODE_ENV=production` é obrigatório (o cookie `Secure` depende disso e de HTTPS). `SESSION_SECRET`, `CORS_ORIGIN` e as credenciais do banco devem ser únicos — a API recusa os placeholders documentados de desenvolvimento. Checklist: [docs/deployment.md](docs/deployment.md).
 
 ## Docker / PostgreSQL
 
@@ -102,7 +108,9 @@ Credenciais locais (não são de produção e **nunca** devem ser reutilizadas e
 - database de desenvolvimento: `central_academica`
 - database de testes: `central_academica_test`
 
-A porta `5433` no host evita conflito com um PostgreSQL instalado na máquina na porta padrão `5432`. O bind em `127.0.0.1` impede acesso de outros hosts da rede local. Não altere o serviço Windows; a API e as migrations deste projeto usam `localhost:5433`.
+A porta `5433` no host evita conflito com um PostgreSQL instalado na máquina na porta padrão `5432`. O bind em `127.0.0.1` impede acesso de outros hosts da rede local. Não altere o serviço Windows; a API e as migrations **locais** deste projeto usam `localhost:5433`.
+
+O Docker Compose é **somente desenvolvimento**. Não publique este Postgres como banco de produção.
 
 Não use `docker compose down -v` — isso apaga o volume do banco do projeto.
 
@@ -115,9 +123,18 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Os scripts leem `DATABASE_URL` de `apps/api/.env` e recusam outra porta.
+Os scripts leem `DATABASE_URL` de `apps/api/.env` e recusam outra porta. Isso **não** é o fluxo de produção.
 
-O seed é **fictício** e idempotente: executar de novo atualiza os mesmos registros, sem duplicar linhas e sem dados pessoais reais. O seed **não** cria tarefas; elas são criadas pela API/UI.
+O seed é **fictício**, **somente de desenvolvimento** e idempotente: executar de novo atualiza os mesmos registros, sem duplicar linhas e sem dados pessoais reais. O seed **não** cria tarefas; elas são criadas pela API/UI. É **proibido** em produção (`NODE_ENV=production` recusa o seed; startup, migrate e web **não** disparam seed).
+
+Produção:
+
+```bash
+npm run db:migrate:prod
+npm run db:bootstrap-user
+```
+
+`db:migrate:prod` exige `ALLOW_PRODUCTION_MIGRATIONS=true` e `MIGRATION_DATABASE_URL`. O bootstrap cria o primeiro aluno `student` via `INITIAL_USER_*` e recusa a senha/e-mail de desenvolvimento. Detalhes em [docs/deployment.md](docs/deployment.md).
 
 Aluno de desenvolvimento (**credencial somente de desenvolvimento**, não é credencial real nem de produção):
 
@@ -183,19 +200,16 @@ Se o banco estiver inacessível, a API responde `503` e `database` vem como `unr
 |---|---|
 | `npm run dev:api` | API em watch (`localhost:3001`) |
 | `npm run dev:web` | frontend Next.js (`localhost:3000`) |
-| `npm run db:migrate` | aplica migrations no database de desenvolvimento |
-| `npm run db:seed` | seed fictício idempotente |
+| `npm run build:api` / `npm run start:api` | build e start da API (deploy) |
+| `npm run build:web` / `npm run start:web` | build e start local do frontend |
+| `npm run db:migrate` | migrations no PostgreSQL Docker de desenvolvimento |
+| `npm run db:migrate:prod` | migrations de produção (`MIGRATION_DATABASE_URL` + `ALLOW_PRODUCTION_MIGRATIONS=true`) |
+| `npm run db:seed` | seed fictício **somente de desenvolvimento** |
+| `npm run db:bootstrap-user` | cria o aluno inicial de produção (explícito; não é cadastro) |
 | `npm run db:test:prepare` | cria/migra/seed o database `central_academica_test` |
 | `npm test` | testes da API (com database de teste) e do frontend |
 | `npm run lint` | ESLint nas duas apps |
 | `npm run typecheck` | TypeScript nas duas apps |
-
-Builds:
-
-```bash
-npm run build --workspace=api
-npm run build --workspace=web
-```
 
 ## Testes
 
@@ -206,7 +220,7 @@ npm test
 - **API:** Vitest + Supertest (auth, CSRF, sessão, throttling de login, média anual/status, CRUD acadêmico, presença, tarefas, isolamento entre alunos). Usam `TEST_DATABASE_URL` (`central_academica_test` em `localhost:5433`). Recusam o database de desenvolvimento. `npm test` prepara o database de teste antes de executar. A configuração canônica é `apps/api/vitest.config.mts`, com setup que valida o database de teste e limpa só ele.
 - **web:** Vitest (formatação, erros HTTP, contrato de `due` e cliente de tasks). Sem Cypress/Playwright.
 
-Total: 103 testes (84 API + 19 web).
+Total: 153 testes (121 API + 32 web).
 
 ## Endpoints principais
 
@@ -247,6 +261,8 @@ Sucesso: `{ "data": ... }`. Erro: `{ "error": { "code", "message", "details?" } 
 
 **Security hardening concluído.** Porta PostgreSQL de desenvolvimento em loopback, throttling de login, scrypt assíncrono, limites de payload/senha e guarda de placeholders de produção. Sem mudança de funcionalidade do produto.
 
+**Deployment Prep concluído.** Contrato de runtime de produção, PostgreSQL hospedado (TLS via URL), migrate/bootstrap explícitos, proxy `/api` na Vercel, `TRUST_PROXY_HOPS` numérico e checklist em [docs/deployment.md](docs/deployment.md). Nenhuma infraestrutura de produção foi criada.
+
 ## Roadmap
 
-Fora do escopo atual: portal do professor, admin real, cadastro, fórmula pós-exame, regra de frequência mínima, IA, PWA, deploy, recorrência, subtasks, tags e sincronização automática entre tarefas e avaliações.
+Fora do escopo atual: portal do professor, admin real, cadastro, fórmula pós-exame, regra de frequência mínima, IA, PWA, recorrência, subtasks, tags e sincronização automática entre tarefas e avaliações. O **deploy real** (Vercel/Railway/Supabase) é o próximo passo guiado — não iniciar V3 automaticamente.

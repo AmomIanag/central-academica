@@ -8,8 +8,14 @@
   "scripts": {
     "dev:api": "npm run dev --workspace=api",
     "dev:web": "npm run dev --workspace=web",
+    "build:api": "npm run build --workspace=api",
+    "build:web": "npm run build --workspace=web",
+    "start:api": "npm run start --workspace=api",
+    "start:web": "npm run start --workspace=web",
     "db:migrate": "npm run db:migrate --workspace=api",
+    "db:migrate:prod": "npm run db:migrate:prod --workspace=api",
     "db:seed": "npm run db:seed --workspace=api",
+    "db:bootstrap-user": "npm run db:bootstrap-user --workspace=api",
     "db:test:prepare": "npm run db:test:prepare --workspace=api",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
@@ -17,7 +23,7 @@
     "format": "prettier --write ."
   },
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "devDependencies": {
     "prettier": "^3.6.2"

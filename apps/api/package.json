@@ -9,9 +9,14 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx src/db/run-migrate.ts",
+    "db:migrate:prod": "tsx src/db/run-migrate-prod.ts",
     "db:seed": "tsx src/db/seed.ts",
+    "db:bootstrap-user": "tsx src/db/run-bootstrap-initial-user.ts",
     "db:test:prepare": "tsx src/db/prepare-test-database.ts",
     "test": "tsx src/db/prepare-test-database.ts && vitest run"
+  },
+  "engines": {
+    "node": "24.x"
   },
   "dependencies": {
     "connect-pg-simple": "^10.0.0",

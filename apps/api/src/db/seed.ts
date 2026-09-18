@@ -1,8 +1,11 @@
 import type { PoolClient } from "pg";
+import { assertDevelopmentSeedAllowed } from "../config/production-guards";
+import { env } from "../config/env";
 import { hashPassword } from "../modules/auth/password";
 import { assertProjectDatabase } from "./assert-project-database";
 import { pool } from "./pool";
 
+assertDevelopmentSeedAllowed(env.nodeEnv);
 assertProjectDatabase();
 
 const DEV_PASSWORD = "admin123";

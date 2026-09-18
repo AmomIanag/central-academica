@@ -1,6 +1,5 @@
 import { Pool } from "pg";
-import { runtimeDatabaseUrl } from "../config/env";
+import { env, runtimeDatabaseUrl } from "../config/env";
+import { postgresPoolConfig } from "./pool-config";
 
-export const pool = new Pool({
-  connectionString: runtimeDatabaseUrl(),
-});
+export const pool = new Pool(postgresPoolConfig(runtimeDatabaseUrl(), env.nodeEnv));

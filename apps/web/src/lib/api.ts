@@ -1,3 +1,5 @@
+import { joinApiUrl } from "./api-url";
+
 function apiUrl(): string | undefined {
   return process.env.NEXT_PUBLIC_API_URL;
 }
@@ -75,7 +77,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(joinApiUrl(API_URL, path), {
       ...init,
       credentials: "include",
       headers: {

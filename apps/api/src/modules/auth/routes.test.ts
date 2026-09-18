@@ -22,6 +22,9 @@ describe("auth routes", () => {
       status: "ok",
       database: "reachable",
     });
+    expect(response.body).not.toHaveProperty("databaseUrl");
+    expect(JSON.stringify(response.body)).not.toContain("postgresql://");
+    expect(app.get("trust proxy")).toBe(false);
   });
 
   it("returns the JSON error envelope for unknown routes", async () => {

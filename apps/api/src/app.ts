@@ -16,6 +16,10 @@ import { sessionMiddleware } from "./modules/auth/session";
 
 export const app = express();
 
+if (env.trustProxyHops > 0) {
+  app.set("trust proxy", env.trustProxyHops);
+}
+
 app.use(helmet());
 app.use(
   cors({

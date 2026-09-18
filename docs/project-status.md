@@ -1,7 +1,7 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard). **V2.2 concluída** (gestão acadêmica editável). **Security hardening concluído** (exposição local do Postgres, throttling de login, scrypt assíncrono).  
-Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md).
+Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard). **V2.2 concluída** (gestão acadêmica editável). **Security hardening concluído** (exposição local do Postgres, throttling de login, scrypt assíncrono). **Deployment Prep concluído** (contrato de produção, migrate/bootstrap, proxy `/api`; sem infra criada).  
+Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md) e [deployment.md](./deployment.md).
 
 ## Objetivo
 
@@ -42,7 +42,11 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 `DATABASE_URL` da API aponta para `localhost:5433` / `central_academica`.  
 `TEST_DATABASE_URL` aponta para o mesmo Postgres Docker, database `central_academica_test`.
 
-`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`. Em produção, `NODE_ENV=production` é obrigatório (cookie `Secure`) e os placeholders de desenvolvimento de `SESSION_SECRET` / credenciais `central`/`central` são recusados na subida da API.
+`SESSION_SECRET` é obrigatório (mínimo 32 caracteres). Copie de `apps/api/.env.example`. Em produção, `NODE_ENV=production` é obrigatório (cookie `Secure` + HTTPS) e os placeholders de desenvolvimento de `SESSION_SECRET`, `CORS_ORIGIN=http://localhost:3000` e credenciais `central`/`central` são recusados na subida da API.
+
+`TRUST_PROXY_HOPS` é um inteiro (padrão `0`). Não definir automaticamente como `1`. O valor correto só pode ser escolhido na validação real do Railway. `trust proxy = true` genérico não é usado.
+
+Produção-alvo: Vercel (web, rewrite `/api`) → Railway (API) → Supabase PostgreSQL (somente banco). Docker Compose não vai para produção. Checklist: [deployment.md](./deployment.md).
 
 ## Etapas
 
@@ -59,6 +63,7 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 | V2. Tarefas, agenda e dashboard | **Concluída** |
 | V2.2. Gestão acadêmica | **Concluída** |
 | Security hardening | **Concluído** |
+| Deployment Prep | **Concluído** — sem deploy real |
 
 ## Banco
 
@@ -74,7 +79,11 @@ Estado da task: `completed_at IS NULL` → pending; caso contrário → complete
 
 Prazo: `due_on` (DATE) **ou** `due_at` (TIMESTAMPTZ), nunca ambos; ambos NULL = sem prazo. Associação opcional a disciplina via FK composta `(user_id, discipline_id)` contra `enrollments`, `ON DELETE RESTRICT`. Exclusão de task é hard delete. Exclusão de disciplina com task vinculada responde `409 CONFLICT`.
 
-Seed fictício e idempotente (não cria tasks). Credencial **somente de desenvolvimento**: `amom.admin@central.local` / `admin123` (hash scrypt). O UUID do usuário seed permanece o mesmo. O texto "admin" no e-mail **não** torna o usuário administrador; `role` continua `student`. Não é credencial de produção.
+Seed fictício e idempotente (não cria tasks). Credencial **somente de desenvolvimento**: `amom.admin@central.local` / `admin123` (hash scrypt). O UUID do usuário seed permanece o mesmo. O texto "admin" no e-mail **não** torna o usuário administrador; `role` continua `student`. Não é credencial de produção. O seed é recusado com `NODE_ENV=production` e **não** roda no startup, nas migrations nem no frontend.
+
+A migration `academic-v22` substituiu estrutura acadêmica **fictícia** da V1 (apaga `grades`/`assessments` incompatíveis). Dados reais de produção não devem passar por esse reshape: o primeiro deploy deve começar com banco vazio, ou com `academic-v22` já aplicada. `npm run db:migrate:prod` recusa o reshape se houver dados e a migration ainda não estiver aplicada.
+
+Produção **não** usa o seed. O primeiro aluno é criado com `npm run db:bootstrap-user` (`INITIAL_USER_*`), que recusa a senha `admin123` e o e-mail de seed e não sobrescreve usuário existente.
 
 Não persistir média nem situação acadêmicas. Fórmulas em `apps/api/src/modules/academic/grades.ts`.
 
@@ -91,17 +100,21 @@ Não usar o PostgreSQL do Windows em `5432`. Não executar `docker compose down 
 
 ## Auth e CSRF
 
-Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`. Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, `Secure` só quando `NODE_ENV=production`). Helmet ligado. Login com Zod + scrypt **assíncrono** (`crypto.scrypt`, `timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
+Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`, usando o pool de `DATABASE_URL` (em produção, o PostgreSQL hospedado — sem localhost). Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, sem `Domain` explícito, `Secure` só quando `NODE_ENV=production`). Helmet ligado. Login com Zod + scrypt **assíncrono** (`crypto.scrypt`, `timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
 
-`POST /auth/login` tem throttling em memória do processo: limite por IP/origem e limite por e-mail normalizado. Estouro responde `429` `TOO_MANY_REQUESTS` com a mesma mensagem genérica, exista ou não a conta. O store atual **não é compartilhado entre instâncias**; deploy multi-instância exigirá um store distribuído. Sem Redis neste pass.
+`POST /auth/login` tem throttling em memória do processo: limite por IP/origem e limite por e-mail normalizado. Estouro responde `429` `TOO_MANY_REQUESTS` com a mesma mensagem genérica, exista ou não a conta. O store atual **não é compartilhado entre instâncias**. **1 instância da API** no primeiro deploy; multi-instância exigirá store distribuído. Sem Redis neste pass.
 
-Mutações (POST/PATCH/PUT/DELETE), inclusive login/logout e a gestão acadêmica, exigem Origin confiável. Sem token CSRF separado.
+`TRUST_PROXY_HOPS` (inteiro, padrão `0`) configura hops confiáveis do Express. Não usar `true` nem funções via env. O valor de produção só deve ser definido depois de validar a topologia no Railway.
+
+Mutações (POST/PATCH/PUT/DELETE), inclusive login/logout e a gestão acadêmica, exigem Origin confiável (`CORS_ORIGIN` = origem do **browser**, mesmo com proxy `/api`). Sem token CSRF separado.
 
 Auth em `apps/api/src/modules/auth/`. `requireAuth` e `requireTrustedOrigin` em `src/middlewares`. Envelope HTTP em `src/http`.
 
 ## Frontend
 
 Layouts `(auth)` e `(app)`. Login, dashboard, notas (`/notas`, `/notas/nova`, `/notas/[id]`, `/notas/[id]/editar`), tarefas (`/tarefas`, `/tarefas/nova`, `/tarefas/[id]`) e agenda (`/agenda`) contra a API real. Design dark-first FIAP. Cliente HTTP com `credentials: "include"`; 401/`UNAUTHENTICATED` redireciona ao login. Sem mocks permanentes.
+
+Em desenvolvimento o browser chama `http://localhost:3001`. Em produção o browser chama `/api`; o Next.js reescreve para `API_PROXY_TARGET` (Railway). Isso preserva cookie first-party (`SameSite=Lax`).
 
 Sidebar: Dashboard, Tarefas, Agenda e Notas.
 
@@ -114,7 +127,7 @@ Agenda é visualização das tasks (hoje, semana, mês, próximas, sem prazo). A
 - API: Vitest + Supertest (auth, CSRF, sessão, média anual/status, CRUD acadêmico, presença, tasks, isolamento, 404). Script: `npm test` (prepara o database de teste).
 - web: Vitest (formatação, erros HTTP, contrato de `due`, timezone/calendário, cliente de tasks). Sem Cypress/Playwright.
 
-Total atual: **103 testes** (84 API + 19 web).
+Total atual: **153 testes** (121 API + 32 web).
 
 ## Decisões aprovadas (não reabrir sem necessidade)
 
@@ -143,16 +156,18 @@ npm run db:test:prepare
 npm run dev:api
 npm run dev:web
 npm test
+npm run build:api
+npm run build:web
 ```
 
 Verificar: `docker compose ps` (healthy, `127.0.0.1:5433->5432`), `curl http://localhost:3001/health`, `npm run lint`, `npm run typecheck`.
 
-Não usar `docker compose down -v`.
+Produção (explícito, nunca no startup): `npm run db:migrate:prod`, `npm run db:bootstrap-user`. Não usar `docker compose down -v`.
 
 Mutações via curl precisam de header `Origin` igual a `CORS_ORIGIN` (em dev: `http://localhost:3000`).
 
 ## Fora da V1/V2/V2.2 / próximo passo
 
-Portal do professor, admin real, cadastro, fórmula pós-exame, regra de frequência mínima, IA, PWA, i18n, tema claro, deploy, recorrência, subtasks, tags, sincronização task ↔ assessment.
+Portal do professor, admin real, cadastro, fórmula pós-exame, regra de frequência mínima, IA, PWA, i18n, tema claro, recorrência, subtasks, tags, sincronização task ↔ assessment.
 
-**Não iniciar V3 automaticamente.**
+O **deploy real** (criar projetos Vercel/Railway/Supabase e migrar produção) é o próximo passo guiado. **Não iniciar V3 automaticamente.**

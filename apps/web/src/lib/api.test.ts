@@ -54,6 +54,42 @@ describe("errorMessage", () => {
   });
 });
 
+describe("api URL construction", () => {
+  it("keeps credentials and joins a development absolute base", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:3001");
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        data: { ok: true },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/auth/login")).resolves.toEqual({ ok: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3001/auth/login",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("joins a production relative /api base without double slashes", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "/api");
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        data: { ok: true },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api("/auth/login")).resolves.toEqual({ ok: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/login",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+});
+
 describe("api 401 handling", () => {
   it("notifies the unauthorized listener once for a session 401", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:3001");

@@ -16,7 +16,17 @@ O Next.js **não** acessa o PostgreSQL e **não** expõe rotas de negócio. O fr
 Aluno → Next.js → HTTP + cookie de sessão → Express → PostgreSQL
 ```
 
-É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1/V2/V2.2.
+Desenvolvimento: `localhost:3000` → `localhost:3001` → Docker `127.0.0.1:5433`.
+
+Produção-alvo (Deployment Prep; infra ainda não criada):
+
+```
+Browser → Vercel (Next.js, origem do cookie)
+            rewrite /api/:path* → Railway Express
+                                    → Supabase PostgreSQL (somente banco)
+```
+
+Supabase não substitui a API. Sem Auth, PostgREST ou SDK no frontend. É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1/V2/V2.2.
 
 Não há `packages/` compartilhados na V1/V2/V2.2. Tipos do contrato podem ser duplicados de forma consciente até a duplicação doer.
 
@@ -24,7 +34,9 @@ Não há `packages/` compartilhados na V1/V2/V2.2. Tipos do contrato podem ser d
 
 - Driver `pg` (node-postgres) e SQL explícito.
 - Migrations versionadas com `node-pg-migrate` em `apps/api/migrations`.
-- Scripts na raiz: `npm run db:migrate` e `npm run db:seed` (leem `apps/api/.env`).
+- Scripts na raiz: `npm run db:migrate` (Docker local, recusa porta ≠ 5433) e `npm run db:seed` (desenvolvimento). Produção: `npm run db:migrate:prod` (`MIGRATION_DATABASE_URL` + `ALLOW_PRODUCTION_MIGRATIONS=true`) e `npm run db:bootstrap-user`. Nenhum desses roda no startup da API ou da web.
+- Runtime usa `DATABASE_URL`. Migração de produção usa só `MIGRATION_DATABASE_URL` (não cai para `DATABASE_URL` nem `TEST_DATABASE_URL`).
+- Em produção, TLS segue a URL/`sslmode` do provedor, com verificação de certificado (`rejectUnauthorized: true`). `rejectUnauthorized: false` não é default. Desenvolvimento local permanece sem TLS.
 - UUIDs gerados pela aplicação (`crypto.randomUUID()` no código futuro; IDs determinísticos no seed). Sem extensão PostgreSQL só para gerar UUID.
 - Sem Prisma, Drizzle ou TypeORM na V1/V2/V2.2.
 
@@ -37,22 +49,23 @@ A associação opcional de uma task a disciplina usa FK composta `(user_id, disc
 ## Autenticação
 
 - Sessão server-side com `express-session` + `connect-pg-simple`, persistida na tabela `session`.
-- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, `Secure` somente quando `NODE_ENV=production` (obrigatório no deploy).
+- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, sem `Domain` explícito, `Secure` somente quando `NODE_ENV=production` (obrigatório no deploy, com HTTPS).
 - Não usar `cookie-parser` salvo necessidade concreta: `express-session` já gerencia o cookie.
 - Após login bem-sucedido, regenerar a sessão **antes** de associar `userId` e salvar a sessão antes da resposta.
 - Senhas com `scrypt` **assíncrono** via `node:crypto` (`crypto.scrypt`, formato `scrypt$N$r$p$salt$key`); comparação com `timingSafeEqual`. Login não distingue e-mail inexistente de senha incorreta (caminho dummy de KDF para conta inexistente).
-- `SESSION_SECRET` obrigatório, mínimo 32 caracteres, validado na subida da API. Com `NODE_ENV=production`, a API recusa o placeholder documentado de `SESSION_SECRET` e as credenciais de banco `central`/`central`.
+- `SESSION_SECRET` obrigatório, mínimo 32 caracteres, validado na subida da API. Com `NODE_ENV=production`, a API recusa o placeholder documentado de `SESSION_SECRET`, as credenciais de banco `central`/`central` e `CORS_ORIGIN=http://localhost:3000`.
 - Helmet nos headers HTTP.
-- `POST /auth/login` tem rate limiting em memória do processo (`express-rate-limit`): 20 tentativas / 15 min por IP e 10 falhas / 15 min por e-mail normalizado. `429` `TOO_MANY_REQUESTS` com mensagem genérica. O store **não é compartilhado entre instâncias**; um deploy multi-instância exigirá store distribuído. `trust proxy` permanece desligado até a topologia de produção ser definida.
+- `POST /auth/login` tem rate limiting em memória do processo (`express-rate-limit`): 20 tentativas / 15 min por IP e 10 falhas / 15 min por e-mail normalizado. `429` `TOO_MANY_REQUESTS` com mensagem genérica. O store **não é compartilhado entre instâncias**. Primeiro deploy: **1 instância**. Multi-instância exigirá store distribuído. Sem Redis.
+- `TRUST_PROXY_HOPS` é um inteiro validado (padrão `0`). Não aceitar `true` nem funções via env. Não definir `1` automaticamente; o hop correto só se conhece na validação Railway. A API não lê `X-Forwarded-For` manualmente.
 - E-mail de login limitado a 254 caracteres; senha a 256. Corpo JSON da API limitado a 32kb.
-- CORS com `credentials: true` e origem em `CORS_ORIGIN`.
+- CORS com `credentials: true` e origem em `CORS_ORIGIN` (origem do browser, inclusive atrás do proxy `/api`).
 - Mutações HTTP (`POST`, `PATCH`, `PUT`, `DELETE`) exigem header `Origin` exatamente igual a `CORS_ORIGIN`. Origin ausente ou inválido responde `403` com código `CSRF_REJECTED`. GET/HEAD/OPTIONS não exigem Origin. Não há token CSRF separado.
 - `POST /auth/login` validado com Zod (e-mail válido, senha presente).
 - Sem JWT, NextAuth, Passport ou Redis na V1/V2/V2.2.
 
 Código de auth em `apps/api/src/modules/auth/`. API acadêmica em `modules/dashboard` e `modules/disciplines`. Tarefas em `modules/tasks`. Média/status/presença em `modules/academic/grades.ts`. Middlewares `requireAuth` e `requireTrustedOrigin` em `src/middlewares`. Envelope HTTP em `src/http`.
 
-Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `POST /me/disciplines`, `GET /me/disciplines/:id`, `PATCH /me/disciplines/:id`, `PATCH /me/disciplines/:id/grades`, `PATCH /me/disciplines/:id/attendance`, `DELETE /me/disciplines/:id`, `GET /me/tasks`, `POST /me/tasks`, `GET /me/tasks/summary`, `GET /me/tasks/options`, `GET /me/tasks/:id`, `PATCH /me/tasks/:id`, `POST /me/tasks/:id/complete`, `POST /me/tasks/:id/reopen`, `DELETE /me/tasks/:id`. `GET /health` permanece público.
+Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `POST /me/disciplines`, `GET /me/disciplines/:id`, `PATCH /me/disciplines/:id`, `PATCH /me/disciplines/:id/grades`, `PATCH /me/disciplines/:id/attendance`, `DELETE /me/disciplines/:id`, `GET /me/tasks`, `POST /me/tasks`, `GET /me/tasks/summary`, `GET /me/tasks/options`, `GET /me/tasks/:id`, `PATCH /me/tasks/:id`, `POST /me/tasks/:id/complete`, `POST /me/tasks/:id/reopen`, `DELETE /me/tasks/:id`. `GET /health` permanece público (sem auth, sem connection string). A API encerra HTTP e o pool em `SIGTERM`/`SIGINT`.
 
 `users.email` é `TEXT`, normalizado para lowercase antes de persistir e no login, com `UNIQUE`. Não usar a extensão `CITEXT`.
 
@@ -88,11 +101,15 @@ Consistência “avaliação e matrícula da mesma disciplina” fica no service
 
 ## Seed
 
-`npm run db:seed` é idempotente (`ON CONFLICT (id) DO UPDATE`) e usa IDs fixos. Dados fictícios de desenvolvimento, não pessoais.
+`npm run db:seed` é idempotente (`ON CONFLICT (id) DO UPDATE`) e usa IDs fixos. Dados fictícios de desenvolvimento, não pessoais. **Proibido em produção.**
 
 Aluno de seed (credencial **somente de desenvolvimento**): `amom.admin@central.local` / senha local `admin123` (hash `scrypt$...` via `node:crypto`). O UUID do usuário seed é estável. O e-mail não concede papel de administrador. Não é segredo de produção.
 
 O seed cobre disciplinas anuais com CP/GS dos dois semestres (caso de referência MD1 72 / MD2 88 / MP 81.6), notas parciais, disciplina sem nota e presença de exemplo.
+
+A migration `academic-v22` converteu seed V1 incompatível (apaga grades/assessments daquele formato). Isso não é política de dados reais: produção começa vazia ou já em V2.2.
+
+O primeiro usuário de produção é criado por `npm run db:bootstrap-user`, não pelo seed.
 
 ## Média, situação e presença
 
@@ -135,12 +152,13 @@ Sidebar: Dashboard, Tarefas, Agenda e Notas.
 
 ## Desenvolvimento local
 
-- PostgreSQL via Docker Compose (somente o banco), publicado no host apenas em loopback: `127.0.0.1:5433:5432`. Acesso local continua em `localhost:5433`.
-- Database de desenvolvimento: `central_academica`. Database de testes: `central_academica_test` no mesmo container (`TEST_DATABASE_URL`).
-- API em `http://localhost:3001`
+- PostgreSQL via Docker Compose (somente o banco, **somente desenvolvimento**), publicado no host apenas em loopback: `127.0.0.1:5433:5432`. Acesso local continua em `localhost:5433`.
+- Database de desenvolvimento: `central_academica`. Database de testes: `central_academica_test` no mesmo container (`TEST_DATABASE_URL`). Produção não usa `TEST_DATABASE_URL`.
+- API em `http://localhost:3001` (`PORT` padrão 3001; em produção `PORT` vem da plataforma e o bind é `0.0.0.0`).
 - Web em `http://localhost:3000`
 - `.env` por app, a partir de `.env.example`. Sem `.env.example` redundante na raiz.
-- Scripts: `npm run dev:api`, `npm run dev:web`, `npm run db:migrate`, `npm run db:seed`, `npm run db:test:prepare`. Sem `concurrently` até ser pedido.
+- Scripts: `npm run dev:api`, `npm run dev:web`, `npm run db:migrate`, `npm run db:seed`, `npm run db:test:prepare`, `npm run build:api`, `npm run build:web`. Sem `concurrently` até ser pedido.
+- Node **24.x** (`.nvmrc`).
 
 Git é controlado manualmente. O agente não deve executar commit, push, branch, reset, clean, add, checkout ou switch.
 
@@ -157,9 +175,10 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 9. Tarefas pessoais, agenda e resumo no dashboard — **V2 concluída**
 10. Gestão acadêmica editável (disciplinas, notas CP/GS, presença) — **V2.2 concluída**
 11. Security hardening — **concluído** (Postgres em loopback, throttling de login, scrypt assíncrono, limites de recurso, Vitest canônico)
+12. Deployment Prep — **concluído** (runtime de produção, migrate/bootstrap explícitos, proxy `/api`, checklist). Infraestrutura real **não** foi criada.
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.
 
 ## Fora da V1/V2/V2.2
 
-Portal do professor, admin completo, catálogo vs oferta, créditos, fórmula pós-exame, regra de frequência mínima, PWA, i18n, tema claro, filas, WebSockets, estado global, IA, recorrência, subtasks, tags e sincronização task ↔ assessment.
+Portal do professor, admin completo, catálogo vs oferta, créditos, fórmula pós-exame, regra de frequência mínima, PWA, i18n, tema claro, filas, WebSockets, estado global, IA, recorrência, subtasks, tags e sincronização task ↔ assessment. O deploy real é o próximo passo guiado; não iniciar V3 automaticamente.
