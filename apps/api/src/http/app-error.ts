@@ -19,3 +19,7 @@ export function notFound(message = "Resource not found."): AppError {
 export function validationError(message: string, details?: unknown): AppError {
   return new AppError(400, "VALIDATION_ERROR", message, details);
 }
+
+export function conflict(message: string, details?: unknown): AppError {
+  return new AppError(409, "CONFLICT", message, details);
+}

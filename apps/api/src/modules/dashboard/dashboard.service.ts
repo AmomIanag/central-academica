@@ -1,4 +1,5 @@
-import { roundAverage } from "../academic/grades";
+import { computeAnnualResult, roundAverage } from "../academic/grades";
+import { listCurrentEnrollments } from "../disciplines/disciplines.repository";
 import { listDisciplines } from "../disciplines/disciplines.service";
 import {
   findCurrentTerm,
@@ -15,19 +16,28 @@ export async function getDashboard(userId: string) {
     return null;
   }
 
-  const [term, disciplines, upcomingAssessments] = await Promise.all([
+  const [term, disciplines, records, upcomingAssessments] = await Promise.all([
     findCurrentTerm(),
     listDisciplines(userId),
+    listCurrentEnrollments(userId),
     listUpcomingAssessments(userId, UPCOMING_ASSESSMENTS_LIMIT),
   ]);
 
-  const averages = disciplines
-    .map((discipline) => discipline.average)
-    .filter((average): average is number => average !== null);
+  const annualAverages = records
+    .map((record) =>
+      computeAnnualResult(
+        record.assessments.map((assessment) => ({
+          semester: assessment.semester,
+          kind: assessment.kind,
+          score: assessment.score,
+        })),
+      ).mp,
+    )
+    .filter((mp): mp is number => mp !== null);
   const overallAverage =
-    averages.length === 0
+    annualAverages.length === 0
       ? null
-      : roundAverage(averages.reduce((total, average) => total + average, 0) / averages.length);
+      : roundAverage(annualAverages.reduce((total, mp) => total + mp, 0) / annualAverages.length);
 
   return {
     student,
@@ -35,9 +45,10 @@ export async function getDashboard(userId: string) {
     overallAverage,
     disciplineCount: disciplines.length,
     statusSummary: {
-      inProgress: disciplines.filter((discipline) => discipline.status === "em_andamento").length,
-      approved: disciplines.filter((discipline) => discipline.status === "aprovado").length,
-      failed: disciplines.filter((discipline) => discipline.status === "reprovado").length,
+      inProgress: disciplines.filter((discipline) => discipline.status === "EM_ANDAMENTO").length,
+      approved: disciplines.filter((discipline) => discipline.status === "APROVADO_DIRETO").length,
+      exam: disciplines.filter((discipline) => discipline.status === "EXAME").length,
+      failed: disciplines.filter((discipline) => discipline.status === "REPROVADO_DIRETO").length,
     },
     upcomingAssessments,
   };

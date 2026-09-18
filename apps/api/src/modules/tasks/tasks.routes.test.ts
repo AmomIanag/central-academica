@@ -3,10 +3,9 @@ import request from "supertest";
 import { app } from "../../app";
 import { pool } from "../../db/pool";
 import { hashPassword } from "../auth/password";
+import { SEED_EMAIL, SEED_PASSWORD } from "../../test/credentials";
 import { TEST_ORIGIN, withOrigin } from "../../test/http";
 
-const SEED_EMAIL = "aluno@central.local";
-const SEED_PASSWORD = "dev-aluno-123";
 const MOBILE_ID = "a4444444-4444-4444-8444-000000000001";
 const JAVA_ID = "a4444444-4444-4444-8444-000000000005";
 const TZ = "America/Sao_Paulo";
@@ -53,10 +52,10 @@ async function ensureOtherStudent(): Promise<void> {
   );
   await pool.query(
     `
-      INSERT INTO disciplines (id, term_id, professor_id, code, name)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO disciplines (id, term_id, professor_id, code, name, owner_user_id, academic_year)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
     `,
-    [OTHER.disciplineId, OTHER.termId, OTHER.professorId, "9TSKXX", "Foreign Task Discipline"],
+    [OTHER.disciplineId, OTHER.termId, OTHER.professorId, "9TSKXX", "Foreign Task Discipline", OTHER.userId, 2026],
   );
   await pool.query(
     `

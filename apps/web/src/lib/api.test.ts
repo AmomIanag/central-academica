@@ -44,6 +44,9 @@ describe("errorMessage", () => {
     expect(errorMessage(new ApiError(403, "CSRF_REJECTED", "x"))).toBe(
       "A requisição foi rejeitada por segurança. Recarregue a página e tente de novo.",
     );
+    expect(errorMessage(new ApiError(409, "CONFLICT", "x"))).toBe(
+      "Não foi possível concluir a operação por um conflito. Verifique as tarefas vinculadas e tente de novo.",
+    );
   });
 });
 

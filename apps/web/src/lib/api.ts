@@ -117,6 +117,8 @@ export function errorMessage(error: unknown): string {
         return "Não encontrado.";
       case "CSRF_REJECTED":
         return "A requisição foi rejeitada por segurança. Recarregue a página e tente de novo.";
+      case "CONFLICT":
+        return "Não foi possível concluir a operação por um conflito. Verifique as tarefas vinculadas e tente de novo.";
       case "UNAUTHENTICATED":
         return "Sessão expirada. Entre novamente.";
       case "NETWORK_ERROR":

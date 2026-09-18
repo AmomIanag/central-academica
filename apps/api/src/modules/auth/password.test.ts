@@ -11,13 +11,13 @@ describe("password hashing", () => {
   });
 
   it("verifies the seed hash format", () => {
-    const hash = hashPassword("dev-aluno-123", Buffer.from("central-acad-seed"));
+    const hash = hashPassword("admin123", Buffer.from("central-acad-seed"));
 
-    expect(verifyPassword("dev-aluno-123", hash)).toBe(true);
-    expect(verifyPassword("dev-aluno-123", "not-a-hash")).toBe(false);
+    expect(verifyPassword("admin123", hash)).toBe(true);
+    expect(verifyPassword("admin123", "not-a-hash")).toBe(false);
   });
 
   it("rejects a missing hash after performing dummy scrypt work", () => {
-    expect(verifyPasswordOrDummy("dev-aluno-123", null)).toBe(false);
+    expect(verifyPasswordOrDummy("admin123", null)).toBe(false);
   });
 });

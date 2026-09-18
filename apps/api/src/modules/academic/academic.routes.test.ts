@@ -2,12 +2,10 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../app";
 import { pool } from "../../db/pool";
+import { SEED_EMAIL, SEED_PASSWORD, SEED_USER_ID } from "../../test/credentials";
 import { withOrigin } from "../../test/http";
 import { hashPassword } from "../auth/password";
 
-const SEED_EMAIL = "aluno@central.local";
-const SEED_PASSWORD = "dev-aluno-123";
-const SEED_USER_ID = "a1111111-1111-4111-8111-111111111111";
 const MOBILE_ID = "a4444444-4444-4444-8444-000000000001";
 const JAVA_ID = "a4444444-4444-4444-8444-000000000005";
 const OTHER = {
@@ -33,6 +31,8 @@ async function login(email: string, password: string) {
 }
 
 async function cleanupOtherStudent(): Promise<void> {
+  await pool.query("DELETE FROM grades WHERE enrollment_id = $1", [OTHER.enrollmentId]);
+  await pool.query("DELETE FROM assessments WHERE discipline_id = $1", [OTHER.disciplineId]);
   await pool.query("DELETE FROM enrollments WHERE id = $1", [OTHER.enrollmentId]);
   await pool.query("DELETE FROM disciplines WHERE id = $1", [OTHER.disciplineId]);
   await pool.query("DELETE FROM session");
@@ -62,7 +62,7 @@ describe("academic routes", () => {
     expect(response.body.error.code).toBe("UNAUTHENTICATED");
   });
 
-  it("lists the seed student's current-term disciplines with numeric averages", async () => {
+  it("lists the seed student's annual disciplines with derived MD/MP values", async () => {
     const agent = await login(SEED_EMAIL, SEED_PASSWORD);
     const response = await agent.get("/me/disciplines");
 
@@ -82,20 +82,37 @@ describe("academic routes", () => {
     expect(byCode["2TDSPJ"]).toMatchObject({
       id: MOBILE_ID,
       name: "Mobile Application Development",
-      status: "aprovado",
+      status: "APROVADO_DIRETO",
       professor: { name: "Ana Souza" },
+      semester1: { cp: 60, gs: 80, md: 72 },
+      semester2: { cp: 70, gs: 100, md: 88 },
+      mp: 81.6,
+      attendance: { totalClasses: 40, absences: 6, percentage: 85 },
     });
-    expectFiniteNumber(byCode["2TDSPJ"].average);
-    expect(byCode["2TDSPJ"].average).toBe(8.45);
+    expectFiniteNumber(byCode["2TDSPJ"].mp);
 
-    expect(byCode["2TDSPD"]).toMatchObject({ status: "reprovado", average: 5.05 });
-    expect(byCode["2TDSPI"]).toMatchObject({ status: "em_andamento", average: 7.7 });
-    expect(byCode["2TDSPG"]).toMatchObject({ status: "em_andamento", average: 6.5 });
-    expect(byCode["2TDSPK"]).toMatchObject({ status: "em_andamento", average: null });
+    expect(byCode["2TDSPD"]).toMatchObject({
+      status: "REPROVADO_DIRETO",
+      mp: 26.4,
+      semester1: { md: 24 },
+      semester2: { md: 28 },
+    });
+    expect(byCode["2TDSPI"]).toMatchObject({
+      status: "EM_ANDAMENTO",
+      mp: null,
+      semester1: { cp: 80, gs: 75, md: 77 },
+      semester2: { md: null },
+    });
+    expect(byCode["2TDSPG"]).toMatchObject({ status: "EXAME", mp: 57.2 });
+    expect(byCode["2TDSPK"]).toMatchObject({
+      status: "EM_ANDAMENTO",
+      mp: null,
+      semester1: { cp: null, gs: null, md: null },
+    });
     expect(byCode["2TDSPK"]).not.toHaveProperty("assessments");
   });
 
-  it("returns discipline detail with numeric weights and nullable scores", async () => {
+  it("returns discipline detail with semester slots and numeric scores", async () => {
     const agent = await login(SEED_EMAIL, SEED_PASSWORD);
     const mobile = await agent.get(`/me/disciplines/${MOBILE_ID}`);
     const java = await agent.get(`/me/disciplines/${JAVA_ID}`);
@@ -104,25 +121,20 @@ describe("academic routes", () => {
     expect(mobile.body.data).toMatchObject({
       id: MOBILE_ID,
       code: "2TDSPJ",
-      status: "aprovado",
-      average: 8.45,
-      term: { label: "2026-1" },
+      status: "APROVADO_DIRETO",
+      mp: 81.6,
+      term: { label: "2026" },
+      semester1: { cp: 60, gs: 80, md: 72 },
+      semester2: { cp: 70, gs: 100, md: 88 },
     });
-    expect(mobile.body.data.assessments).toHaveLength(3);
-    expectFiniteNumber(mobile.body.data.assessments[0].weight);
-    expectFiniteNumber(mobile.body.data.assessments[0].score);
-    expect(mobile.body.data.assessments.map((item: { name: string }) => item.name)).toEqual([
-      "Checkpoint 1",
-      "Checkpoint 2",
-      "Challenge",
-    ]);
+    expectFiniteNumber(mobile.body.data.semester1.cp);
+    expectFiniteNumber(mobile.body.data.mp);
 
     expect(java.status).toBe(200);
-    expect(java.body.data.average).toBeNull();
-    expect(java.body.data.status).toBe("em_andamento");
-    expect(java.body.data.assessments.every((item: { score: number | null }) => item.score === null)).toBe(
-      true,
-    );
+    expect(java.body.data.mp).toBeNull();
+    expect(java.body.data.status).toBe("EM_ANDAMENTO");
+    expect(java.body.data.semester1.cp).toBeNull();
+    expect(java.body.data.semester2.gs).toBeNull();
   });
 
   it("rejects an invalid discipline id with VALIDATION_ERROR", async () => {
@@ -152,10 +164,10 @@ describe("academic routes", () => {
     );
     await pool.query(
       `
-        INSERT INTO disciplines (id, term_id, professor_id, code, name)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO disciplines (id, term_id, professor_id, code, name, owner_user_id, academic_year)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       `,
-      [OTHER.disciplineId, OTHER.termId, OTHER.professorId, "9TESTX", "Isolation Discipline"],
+      [OTHER.disciplineId, OTHER.termId, OTHER.professorId, "9TESTX", "Isolation Discipline", OTHER.userId, 2026],
     );
     await pool.query(
       `
@@ -192,7 +204,7 @@ describe("academic routes", () => {
     await cleanupOtherStudent();
   });
 
-  it("returns a compact dashboard with coherent counts and overall average", async () => {
+  it("returns a compact dashboard with annual MP and the new status summary", async () => {
     const agent = await login(SEED_EMAIL, SEED_PASSWORD);
     const response = await agent.get("/me/dashboard");
 
@@ -205,27 +217,28 @@ describe("academic routes", () => {
     });
     expect(response.body.data.term).toMatchObject({
       id: "a2222222-2222-4222-8222-222222222222",
-      label: "2026-1",
+      label: "2026",
     });
     expect(response.body.data.disciplineCount).toBe(5);
     expect(response.body.data.statusSummary).toEqual({
-      inProgress: 3,
+      inProgress: 2,
       approved: 1,
+      exam: 1,
       failed: 1,
     });
     expectFiniteNumber(response.body.data.overallAverage);
-    expect(response.body.data.overallAverage).toBe(6.93);
+    expect(response.body.data.overallAverage).toBe(55.07);
     expect(response.body.data.upcomingAssessments).toHaveLength(5);
     expect(response.body.data.upcomingAssessments.map((item: { dueOn: string }) => item.dueOn)).toEqual([
-      "2026-05-12",
       "2026-06-25",
       "2026-06-28",
       "2026-09-30",
       "2026-10-20",
+      "2026-11-15",
     ]);
     expect(response.body.data.upcomingAssessments[0]).toMatchObject({
-      name: "Checkpoint 2",
-      discipline: { code: "2TDSPG" },
+      name: "CP",
+      discipline: { code: "2TDSPI" },
     });
   });
 });

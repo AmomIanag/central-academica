@@ -85,7 +85,7 @@ export async function listUpcomingAssessments(
         d.name AS discipline_name
       FROM enrollments e
       JOIN disciplines d ON d.id = e.discipline_id
-      JOIN terms t ON t.id = d.term_id AND t.is_current = true
+      JOIN terms t ON t.is_current = true AND d.academic_year = t.year
       JOIN assessments a ON a.discipline_id = d.id
       LEFT JOIN grades g ON g.assessment_id = a.id AND g.enrollment_id = e.id
       WHERE e.user_id = $1

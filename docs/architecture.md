@@ -16,9 +16,9 @@ O Next.js **não** acessa o PostgreSQL e **não** expõe rotas de negócio. O fr
 Aluno → Next.js → HTTP + cookie de sessão → Express → PostgreSQL
 ```
 
-É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1/V2.
+É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1/V2/V2.2.
 
-Não há `packages/` compartilhados na V1/V2. Tipos do contrato podem ser duplicados de forma consciente até a duplicação doer.
+Não há `packages/` compartilhados na V1/V2/V2.2. Tipos do contrato podem ser duplicados de forma consciente até a duplicação doer.
 
 ## Persistência
 
@@ -26,9 +26,9 @@ Não há `packages/` compartilhados na V1/V2. Tipos do contrato podem ser duplic
 - Migrations versionadas com `node-pg-migrate` em `apps/api/migrations`.
 - Scripts na raiz: `npm run db:migrate` e `npm run db:seed` (leem `apps/api/.env`).
 - UUIDs gerados pela aplicação (`crypto.randomUUID()` no código futuro; IDs determinísticos no seed). Sem extensão PostgreSQL só para gerar UUID.
-- Sem Prisma, Drizzle ou TypeORM na V1/V2.
+- Sem Prisma, Drizzle ou TypeORM na V1/V2/V2.2.
 
-Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, disciplina, matrícula, avaliação ou tarefa enquanto houver dependentes. Evita perda silenciosa de histórico acadêmico. Sem `CASCADE` na V1/V2.
+Todas as FKs usam `ON DELETE RESTRICT`: não removemos termo, professor, aluno, disciplina, matrícula, avaliação ou tarefa enquanto houver dependentes. Evita perda silenciosa de histórico acadêmico. Sem `CASCADE` na V1/V2/V2.2. A exclusão de disciplina pela API remove apenas o grafo acadêmico do dono (enrollment, assessments, grades) depois de confirmar que não há tasks vinculadas; se houver, responde `409 CONFLICT`.
 
 `users.email` tem `UNIQUE` e `CHECK (email = lower(email))`. A aplicação (e o seed) persiste lowercase; o banco rejeita e-mail com maiúsculas.
 
@@ -46,29 +46,31 @@ A associação opcional de uma task a disciplina usa FK composta `(user_id, disc
 - CORS com `credentials: true` e origem em `CORS_ORIGIN`.
 - Mutações HTTP (`POST`, `PATCH`, `PUT`, `DELETE`) exigem header `Origin` exatamente igual a `CORS_ORIGIN`. Origin ausente ou inválido responde `403` com código `CSRF_REJECTED`. GET/HEAD/OPTIONS não exigem Origin. Não há token CSRF separado.
 - `POST /auth/login` validado com Zod (e-mail válido, senha presente).
-- Sem JWT, NextAuth, Passport ou Redis na V1/V2.
+- Sem JWT, NextAuth, Passport ou Redis na V1/V2/V2.2.
 
-Código de auth em `apps/api/src/modules/auth/`. API acadêmica em `modules/dashboard` e `modules/disciplines`. Tarefas em `modules/tasks`. Média/status em `modules/academic/grades.ts`. Middlewares `requireAuth` e `requireTrustedOrigin` em `src/middlewares`. Envelope HTTP em `src/http`.
+Código de auth em `apps/api/src/modules/auth/`. API acadêmica em `modules/dashboard` e `modules/disciplines`. Tarefas em `modules/tasks`. Média/status/presença em `modules/academic/grades.ts`. Middlewares `requireAuth` e `requireTrustedOrigin` em `src/middlewares`. Envelope HTTP em `src/http`.
 
-Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `GET /me/disciplines/:id`, `GET /me/tasks`, `POST /me/tasks`, `GET /me/tasks/summary`, `GET /me/tasks/options`, `GET /me/tasks/:id`, `PATCH /me/tasks/:id`, `POST /me/tasks/:id/complete`, `POST /me/tasks/:id/reopen`, `DELETE /me/tasks/:id`. `GET /health` permanece público.
+Endpoints: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `GET /me/dashboard`, `GET /me/disciplines`, `POST /me/disciplines`, `GET /me/disciplines/:id`, `PATCH /me/disciplines/:id`, `PATCH /me/disciplines/:id/grades`, `PATCH /me/disciplines/:id/attendance`, `DELETE /me/disciplines/:id`, `GET /me/tasks`, `POST /me/tasks`, `GET /me/tasks/summary`, `GET /me/tasks/options`, `GET /me/tasks/:id`, `PATCH /me/tasks/:id`, `POST /me/tasks/:id/complete`, `POST /me/tasks/:id/reopen`, `DELETE /me/tasks/:id`. `GET /health` permanece público.
 
 `users.email` é `TEXT`, normalizado para lowercase antes de persistir e no login, com `UNIQUE`. Não usar a extensão `CITEXT`.
 
-## Modelagem acadêmica (V1)
+## Modelagem acadêmica (V2.2)
 
 Tabelas:
 
 - `users` — aluno autenticável; `role` ∈ {`student`, `admin`}
-- `terms` — período; `semester` ∈ {1, 2}; no máximo um `is_current = true` (índice único parcial)
-- `professors` — dados de exibição, não fazem login
-- `disciplines` — oferta no período (`UNIQUE(term_id, code)`); sem catálogo separado
-- `enrollments` — `UNIQUE(user_id, discipline_id)`
-- `assessments` — `weight` em (0, 1]; soma dos pesos por disciplina é regra de **service** (Etapa 5), não trigger
-- `grades` — `score` em [0, 10]; `UNIQUE(enrollment_id, assessment_id)`
+- `terms` — calendário; `semester` ∈ {1, 2}; no máximo um `is_current = true` (índice único parcial). `year` marca o ano letivo corrente usado para listar disciplinas anuais.
+- `professors` — dados de exibição, não fazem login; `email` é opcional
+- `disciplines` — oferta **anual** do aluno (`owner_user_id`, `academic_year`); `UNIQUE(owner_user_id, academic_year, code)`; `term_id` associa a oferta ao calendário, mas o semestre das notas vive em `assessments`
+- `enrollments` — `UNIQUE(user_id, discipline_id)`; `total_classes` e `absences` (≥ 0, faltas ≤ aulas)
+- `assessments` — quatro slots por disciplina: `semester` ∈ {1, 2} e `kind` ∈ {`CP`, `GS`}; `UNIQUE(discipline_id, semester, kind)`; `weight` permanece por compatibilidade (CP = 0.40, GS = 0.60) e **não** é fonte da verdade
+- `grades` — `score` em [0, 100]; `UNIQUE(enrollment_id, assessment_id)`; ausência de nota é ausência de linha, não zero
 
-Não há tabela `students`. Não há colunas `average` nem `status`.
+Não há tabela `students`. Não há colunas de média nem situação.
 
-Consistência “avaliação e matrícula da mesma disciplina” fica no service da Etapa 5.
+A disciplina editável pertence ao aluno (`owner_user_id`). Trocar o professor cria/reusa um registro no escopo do dono; não renomeia um professor compartilhado.
+
+Consistência “avaliação e matrícula da mesma disciplina” fica no service.
 
 ## Tarefas pessoais (V2)
 
@@ -86,22 +88,30 @@ Consistência “avaliação e matrícula da mesma disciplina” fica no service
 
 `npm run db:seed` é idempotente (`ON CONFLICT (id) DO UPDATE`) e usa IDs fixos. Dados fictícios de desenvolvimento, não pessoais.
 
-Aluno de seed: `aluno@central.local` / senha local `dev-aluno-123` (hash `scrypt$...` via `node:crypto`). Não é segredo de produção.
+Aluno de seed (credencial **somente de desenvolvimento**): `amom.admin@central.local` / senha local `admin123` (hash `scrypt$...` via `node:crypto`). O UUID do usuário seed é estável. O e-mail não concede papel de administrador. Não é segredo de produção.
 
-O seed cobre disciplinas com todas as notas (média futura ≥ 6 e < 6), notas parciais e avaliações sem nota.
+O seed cobre disciplinas anuais com CP/GS dos dois semestres (caso de referência MD1 72 / MD2 88 / MP 81.6), notas parciais, disciplina sem nota e presença de exemplo.
 
-## Média e situação
+## Média, situação e presença
 
-Derivadas no service (`apps/api/src/modules/academic/grades.ts`), não persistidas. Corte V1: `PASSING_AVERAGE = 6.0`.
+Derivadas no service (`apps/api/src/modules/academic/grades.ts`), não persistidas.
 
-- média parcial: `sum(score * weight) / sum(weight das avaliações com nota)`
-- sem notas ou sem avaliações: `average = null`, `status = em_andamento`
-- falta alguma nota: `em_andamento`
-- todas lançadas e média ≥ 6.0: `aprovado`; média < 6.0: `reprovado`
-- V1 ignora exame/substitutiva
-- resposta HTTP arredonda `average`/`overallAverage` em 2 casas; `weight` e `score` saem como `number`
+Fórmulas oficiais (escala 0–100):
 
-V1 lê só o termo `is_current = true`. Sem período atual: lista vazia, dashboard com `term: null` e totais zerados, detalhe `NOT_FOUND`.
+- `MD1 = CP1 × 0.40 + GS1 × 0.60`
+- `MD2 = CP2 × 0.40 + GS2 × 0.60`
+- `MP = MD1 × 0.40 + MD2 × 0.60`
+
+MD1/MD2 não são arredondadas antes de calcular MP. A resposta HTTP arredonda números em no máximo duas casas.
+
+Situação anual:
+
+- qualquer uma das quatro notas ausente → `EM_ANDAMENTO`
+- com as quatro notas: `MP >= 60` → `APROVADO_DIRETO`; `40 <= MP < 60` → `EXAME`; `MP < 40` → `REPROVADO_DIRETO`
+
+Não há fórmula pós-exame. Presença = `(totalAulas - faltas) / totalAulas × 100`; com 0 aulas o percentual é `null`. Presença não altera a situação nesta versão.
+
+O frontend não recalcula MD/MP/situação/presença. Listagem do aluno usa o ano letivo do termo `is_current`. Sem período atual: lista vazia, dashboard com `term: null` e totais zerados, detalhe `NOT_FOUND`.
 
 ## Contrato HTTP
 
@@ -116,7 +126,7 @@ V1 lê só o termo `is_current = true`. Sem período atual: lista vazia, dashboa
 
 - App Router, layouts `(auth)` e `(app)` quando as páginas existirem.
 - Tailwind + design tokens próprios (dark-first, accent magenta FIAP).
-- Componentes locais. Sem shadcn, Redux, Zustand ou TanStack Query na V1/V2.
+- Componentes locais. Sem shadcn, Redux, Zustand ou TanStack Query na V1/V2/V2.2.
 - A partir da Etapa 6, se API e banco estiverem no ar, o frontend consome a API real. Sem mocks descartáveis.
 
 Sidebar: Dashboard, Tarefas, Agenda e Notas.
@@ -143,9 +153,10 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 7. Integração ponta a ponta e hardening (login, sessão, 401, CORS, loading/erro, refresh, fluxo completo)
 8. Polimento, revisão e suíte final de testes — **V1 concluída**
 9. Tarefas pessoais, agenda e resumo no dashboard — **V2 concluída**
+10. Gestão acadêmica editável (disciplinas, notas CP/GS, presença) — **V2.2 concluída**
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.
 
-## Fora da V1/V2
+## Fora da V1/V2/V2.2
 
-Portal do professor, admin completo, catálogo vs oferta, créditos, exame, PWA, i18n, tema claro, filas, WebSockets, estado global, IA, recorrência, subtasks, tags e sincronização task ↔ assessment.
+Portal do professor, admin completo, catálogo vs oferta, créditos, fórmula pós-exame, regra de frequência mínima, PWA, i18n, tema claro, filas, WebSockets, estado global, IA, recorrência, subtasks, tags e sincronização task ↔ assessment.

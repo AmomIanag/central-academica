@@ -1,4 +1,6 @@
-export type AcademicStatus = "em_andamento" | "aprovado" | "reprovado";
+export type AcademicStatus = "EM_ANDAMENTO" | "APROVADO_DIRETO" | "EXAME" | "REPROVADO_DIRETO";
+export type AssessmentKind = "CP" | "GS";
+export type AcademicSemester = 1 | 2;
 
 export type User = {
   id: string;
@@ -19,26 +21,54 @@ export type Professor = {
   name: string;
 };
 
+export type Attendance = {
+  totalClasses: number;
+  absences: number;
+  percentage: number | null;
+};
+
+export type SemesterGrades = {
+  cp: number | null;
+  gs: number | null;
+  md: number | null;
+};
+
 export type DisciplineSummary = {
   id: string;
   code: string;
   name: string;
+  academicYear: number;
   professor: Professor;
-  average: number | null;
+  attendance: Attendance;
+  semester1: SemesterGrades;
+  semester2: SemesterGrades;
+  mp: number | null;
   status: AcademicStatus;
-};
-
-export type Assessment = {
-  id: string;
-  name: string;
-  weight: number;
-  dueOn: string | null;
-  score: number | null;
 };
 
 export type DisciplineDetail = DisciplineSummary & {
   term: Term;
-  assessments: Assessment[];
+};
+
+export type DisciplineWritePayload = {
+  name: string;
+  professorName: string;
+};
+
+export type DisciplinePatchPayload = {
+  name?: string;
+  professorName?: string;
+};
+
+export type GradePatchPayload = {
+  semester: AcademicSemester;
+  kind: AssessmentKind;
+  score: number | null;
+};
+
+export type AttendancePatchPayload = {
+  totalClasses: number;
+  absences: number;
 };
 
 export type UpcomingAssessment = {
@@ -65,6 +95,7 @@ export type Dashboard = {
   statusSummary: {
     inProgress: number;
     approved: number;
+    exam: number;
     failed: number;
   };
   upcomingAssessments: UpcomingAssessment[];

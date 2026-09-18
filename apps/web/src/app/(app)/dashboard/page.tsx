@@ -30,7 +30,9 @@ export default function DashboardPage() {
     {
       label: "Disciplinas",
       value: String(data.disciplineCount),
-      hint: `${data.statusSummary.inProgress} em andamento`,
+      hint: `${data.statusSummary.inProgress} em andamento${
+        data.statusSummary.exam > 0 ? ` · ${data.statusSummary.exam} em exame` : ""
+      }`,
     },
     {
       label: "Aprovadas",
@@ -97,7 +99,7 @@ export default function DashboardPage() {
           {data.upcomingAssessments.length === 0 ? (
             <EmptyState
               title="Nenhuma avaliação pendente"
-              description="Não há avaliações sem nota com data definida no período atual."
+              description="Não há avaliações sem nota com data definida no ano letivo atual."
             />
           ) : (
             <Card className="overflow-hidden">

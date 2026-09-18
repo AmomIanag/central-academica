@@ -2,11 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { app } from "../../app";
 import { pool } from "../../db/pool";
+import { SEED_EMAIL, SEED_PASSWORD } from "../../test/credentials";
 import { withOrigin } from "../../test/http";
 import { SESSION_COOKIE_NAME } from "./session";
-
-const SEED_EMAIL = "aluno@central.local";
-const SEED_PASSWORD = "dev-aluno-123";
 
 afterEach(async () => {
   await pool.query("DELETE FROM session");
@@ -79,7 +77,7 @@ describe("auth routes", () => {
         .post("/auth/login")
         .set("Cookie", `${SESSION_COOKIE_NAME}=s%3Aattacker-session.signature`),
     ).send({
-      email: "  Aluno@Central.Local  ",
+      email: "  Amom.Admin@Central.Local  ",
       password: SEED_PASSWORD,
     });
 

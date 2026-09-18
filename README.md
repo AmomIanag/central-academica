@@ -1,6 +1,6 @@
 # Central Acadêmica FIAP
 
-Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A **V1** entrega o módulo de **notas**. A **V2** adiciona **tarefas pessoais**, **agenda** e um resumo de tarefas no dashboard.
+Aplicação web full-stack para centralizar informações acadêmicas do aluno FIAP. A **V1** entrega o módulo de **notas**. A **V2** adiciona **tarefas pessoais**, **agenda** e um resumo de tarefas no dashboard. A **V2.2** torna a área acadêmica **editável**, com disciplinas, notas CP/GS, média anual e presença.
 
 ## Screenshot
 
@@ -9,9 +9,10 @@ _Adicione aqui um print da interface (login, dashboard, tarefas ou agenda)._
 ## Funcionalidades
 
 - Login com sessão server-side (cookie httpOnly)
-- Dashboard do período atual (média geral, resumo acadêmico e próximas avaliações)
-- Lista de disciplinas com média e situação
-- Detalhe da disciplina (avaliações, pesos e notas)
+- Dashboard do ano letivo atual (média geral das MPs, resumo acadêmico e próximas avaliações)
+- Gestão de disciplinas: criar, editar nome/professor e remover (bloqueada se houver tarefa vinculada)
+- Notas CP/GS do 1º e 2º semestre, MD1, MD2, MP anual e situação derivada
+- Presença por disciplina (aulas, faltas e percentual derivado)
 - Tarefas pessoais: criar, editar, concluir, reabrir, excluir, filtrar e associar opcionalmente a uma disciplina
 - Agenda (hoje, semana, mês, próximas e sem prazo), baseada somente em tarefas
 - Resumo compacto de tarefas no dashboard
@@ -116,12 +117,13 @@ Os scripts leem `DATABASE_URL` de `apps/api/.env` e recusam outra porta.
 
 O seed é **fictício** e idempotente: executar de novo atualiza os mesmos registros, sem duplicar linhas e sem dados pessoais reais. O seed **não** cria tarefas; elas são criadas pela API/UI.
 
-Aluno de desenvolvimento (não é credencial real):
+Aluno de desenvolvimento (**credencial somente de desenvolvimento**, não é credencial real nem de produção):
 
 - nome: Aluno Teste
-- email: `aluno@central.local`
-- senha local: `dev-aluno-123`
+- email: `amom.admin@central.local`
+- senha local: `admin123`
 - RA: `RM000000`
+- role: `student` (o texto "admin" no e-mail não concede privilégio administrativo)
 
 Para inspecionar o banco:
 
@@ -153,7 +155,7 @@ Mutações HTTP (login, logout, criar/editar tarefas) exigem header `Origin` igu
 curl -X POST http://localhost:3001/auth/login \
   -H "Origin: http://localhost:3000" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":\"aluno@central.local\",\"password\":\"dev-aluno-123\"}"
+  -d "{\"email\":\"amom.admin@central.local\",\"password\":\"admin123\"}"
 ```
 
 ## Healthcheck
@@ -199,8 +201,10 @@ npm run build --workspace=web
 npm test
 ```
 
-- **API:** Vitest + Supertest (auth, CSRF, sessão, média/status, tarefas, isolamento entre alunos). Usam `TEST_DATABASE_URL` (`central_academica_test` em `localhost:5433`). Recusam o database de desenvolvimento. `npm test` prepara o database de teste antes de executar.
+- **API:** Vitest + Supertest (auth, CSRF, sessão, média anual/status, CRUD acadêmico, presença, tarefas, isolamento entre alunos). Usam `TEST_DATABASE_URL` (`central_academica_test` em `localhost:5433`). Recusam o database de desenvolvimento. `npm test` prepara o database de teste antes de executar.
 - **web:** Vitest (formatação, erros HTTP, contrato de `due` e cliente de tasks). Sem Cypress/Playwright.
+
+Total: 90 testes (71 API + 19 web).
 
 ## Endpoints principais
 
@@ -209,9 +213,14 @@ Cookie httpOnly `central.sid`:
 - `POST /auth/login` — `{ "email", "password" }`
 - `POST /auth/logout`
 - `GET /auth/me` — exige sessão
-- `GET /me/dashboard` — período atual, média geral, resumo e próximas avaliações
-- `GET /me/disciplines` — disciplinas do período atual
-- `GET /me/disciplines/:id` — detalhe, avaliações e notas
+- `GET /me/dashboard` — ano letivo atual, média geral das MPs, resumo e próximas avaliações
+- `GET /me/disciplines` — disciplinas do ano letivo atual
+- `POST /me/disciplines` — cria disciplina anual do aluno autenticado
+- `GET /me/disciplines/:id` — detalhe, semestres, MP, situação e presença
+- `PATCH /me/disciplines/:id` — nome e professor
+- `PATCH /me/disciplines/:id/grades` — lança, altera ou remove CP/GS (`score` ou `null`)
+- `PATCH /me/disciplines/:id/attendance` — aulas e faltas
+- `DELETE /me/disciplines/:id` — remove a estrutura acadêmica; `409` se houver tarefa vinculada
 - `GET /me/tasks` — lista tarefas do aluno autenticado (filtros: `status`, `priority`, `disciplineId`, `from`, `to`, `timeZone`, `limit`, `offset`)
 - `POST /me/tasks` — cria tarefa
 - `GET /me/tasks/summary` — pendentes, atrasadas e próximas 3
@@ -232,6 +241,8 @@ Sucesso: `{ "data": ... }`. Erro: `{ "error": { "code", "message", "details?" } 
 
 **V2 concluída.** Tarefas pessoais, agenda e resumo de tarefas no dashboard estão implementados, testados e documentados.
 
+**V2.2 concluída.** Gestão acadêmica: CRUD de disciplinas, edição de notas CP/GS (escala 0–100), MD1/MD2/MP, situação derivada e presença. Sem fórmula pós-exame.
+
 ## Roadmap
 
-Fora do escopo atual: portal do professor, admin, cadastro, edição de notas, IA, PWA, deploy, recorrência, subtasks, tags e sincronização automática entre tarefas e avaliações.
+Fora do escopo atual: portal do professor, admin real, cadastro, fórmula pós-exame, regra de frequência mínima, IA, PWA, deploy, recorrência, subtasks, tags e sincronização automática entre tarefas e avaliações.

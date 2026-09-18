@@ -6,13 +6,21 @@ export function formatAverage(value: number | null): string {
   }
 
   return value.toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
     maximumFractionDigits: 2,
   });
 }
 
 export function formatScore(value: number | null): string {
   return formatAverage(value);
+}
+
+export function formatPercent(value: number | null): string {
+  if (value === null) {
+    return "—";
+  }
+
+  return `${formatAverage(value)}%`;
 }
 
 export function formatWeight(weight: number): string {
@@ -35,10 +43,12 @@ export function formatDate(iso: string | null): string {
 
 export function statusLabel(status: AcademicStatus): string {
   switch (status) {
-    case "aprovado":
-      return "Aprovado";
-    case "reprovado":
-      return "Reprovado";
+    case "APROVADO_DIRETO":
+      return "Aprovado direto";
+    case "REPROVADO_DIRETO":
+      return "Reprovado direto";
+    case "EXAME":
+      return "Exame";
     default:
       return "Em andamento";
   }
