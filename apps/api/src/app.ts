@@ -7,6 +7,7 @@ import { JSON_BODY_LIMIT } from "./config/http";
 import { pool } from "./db/pool";
 import { AppError } from "./http/app-error";
 import { sendError } from "./http/response";
+import { perfRequestContext } from "./middlewares/perf-context";
 import { requireTrustedOrigin } from "./middlewares/require-origin";
 import { authRouter } from "./modules/auth/routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
@@ -29,6 +30,7 @@ app.use(
 );
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(requireTrustedOrigin);
+app.use(perfRequestContext);
 app.use(sessionMiddleware);
 
 app.get("/health", async (_req, res) => {

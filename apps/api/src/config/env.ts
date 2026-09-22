@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { assertProductionConfiguration } from "./production-guards";
-import { parseListenHost, parseListenPort, parseTrustProxyHops } from "./runtime";
+import { parseListenHost, parseListenPort, parsePerfLogging, parseTrustProxyHops } from "./runtime";
 
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
@@ -48,6 +48,7 @@ export const env = {
   sessionSecret,
   trustProxyHops,
   databaseSslCa: process.env.DATABASE_SSL_CA,
+  perfLogging: parsePerfLogging(process.env.PERF_LOGGING),
 };
 
 export function runtimeDatabaseUrl(): string {

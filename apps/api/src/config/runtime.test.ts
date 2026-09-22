@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseListenHost, parseListenPort, parseTrustProxyHops } from "./runtime";
+import { parseListenHost, parseListenPort, parsePerfLogging, parseTrustProxyHops } from "./runtime";
 
 describe("parseListenPort", () => {
   it("defaults to 3001 outside production", () => {
@@ -32,6 +32,22 @@ describe("parseListenHost", () => {
   it("uses an explicit HOST when provided", () => {
     expect(parseListenHost("127.0.0.1", "production")).toBe("127.0.0.1");
     expect(parseListenHost(" 0.0.0.0 ", "development")).toBe("0.0.0.0");
+  });
+});
+
+describe("parsePerfLogging", () => {
+  it("defaults to false", () => {
+    expect(parsePerfLogging(undefined)).toBe(false);
+    expect(parsePerfLogging("")).toBe(false);
+    expect(parsePerfLogging("false")).toBe(false);
+    expect(parsePerfLogging("1")).toBe(false);
+    expect(parsePerfLogging("yes")).toBe(false);
+  });
+
+  it("enables only the boolean string true", () => {
+    expect(parsePerfLogging("true")).toBe(true);
+    expect(parsePerfLogging("TRUE")).toBe(true);
+    expect(parsePerfLogging(" true ")).toBe(true);
   });
 });
 

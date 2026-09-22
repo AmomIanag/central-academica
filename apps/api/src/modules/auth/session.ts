@@ -3,6 +3,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { env } from "../../config/env";
 import { pool } from "../../db/pool";
+import { instrumentSessionStore, PERF_OP, wrapTimedMiddleware } from "../../lib/perf";
 
 const PgSession = connectPgSimple(session);
 
@@ -15,19 +16,26 @@ export const sessionCookieOptions: CookieOptions = {
   path: "/",
 };
 
-export const sessionMiddleware = session({
-  name: SESSION_COOKIE_NAME,
-  secret: env.sessionSecret,
-  store: new PgSession({
-    pool,
-    tableName: "session",
-    createTableIfMissing: false,
-    pruneSessionInterval: env.nodeEnv === "test" ? false : 60 * 15,
-  }),
-  resave: false,
-  saveUninitialized: false,
-  cookie: sessionCookieOptions,
+const sessionStore = new PgSession({
+  pool,
+  tableName: "session",
+  createTableIfMissing: false,
+  pruneSessionInterval: env.nodeEnv === "test" ? false : 60 * 15,
 });
+
+instrumentSessionStore(sessionStore);
+
+export const sessionMiddleware = wrapTimedMiddleware(
+  PERF_OP.sessionMiddleware,
+  session({
+    name: SESSION_COOKIE_NAME,
+    secret: env.sessionSecret,
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: sessionCookieOptions,
+  }),
+);
 
 export function regenerateSession(req: Request): Promise<void> {
   return new Promise((resolve, reject) => {

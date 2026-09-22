@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import { pool } from "../../db/pool";
+import { PERF_OP, timePerf } from "../../lib/perf";
 import { toNullableNumber, toNumber, type AcademicSemester, type AssessmentKind } from "../academic/grades";
 
 export type Queryable = Pick<typeof pool, "query"> | PoolClient;
@@ -147,12 +148,14 @@ export async function listCurrentEnrollments(
   userId: string,
   db: Queryable = pool,
 ): Promise<DisciplineRecord[]> {
-  const result = await db.query<EnrollmentJoinRow>(
-    `
+  const result = await timePerf(PERF_OP.disciplinesListCurrentEnrollments, () =>
+    db.query<EnrollmentJoinRow>(
+      `
       ${ENROLLMENT_SQL}
       ORDER BY d.code ASC, d.name ASC, a.sort_order ASC, a.semester ASC, a.kind ASC, a.id ASC
     `,
-    [userId],
+      [userId],
+    ),
   );
 
   return groupRows(result.rows);

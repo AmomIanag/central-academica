@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../../db/pool";
 import { sendData, sendError } from "../../http/response";
 import { requireAuth } from "../../middlewares/require-auth";
+import { PERF_OP, timePerf } from "../../lib/perf";
 import { loginAccountRateLimiter, loginIpRateLimiter } from "./login-rate-limit";
 import { verifyPasswordOrDummy } from "./password";
 import { loginSchema } from "./schema";
@@ -81,13 +82,15 @@ authRouter.post("/logout", async (req, res) => {
 });
 
 authRouter.get("/me", requireAuth, async (req, res) => {
-  const result = await pool.query<Omit<UserRow, "password_hash">>(
-    `
+  const result = await timePerf(PERF_OP.authMeFindUser, () =>
+    pool.query<Omit<UserRow, "password_hash">>(
+      `
       SELECT id, name, email, ra, course_name, role
       FROM users
       WHERE id = $1
     `,
-    [req.session.userId],
+      [req.session.userId],
+    ),
   );
   const user = result.rows[0];
 

@@ -1,4 +1,5 @@
 import { pool } from "../../db/pool";
+import { PERF_OP, timePerf } from "../../lib/perf";
 
 export type StudentRecord = {
   id: string;
@@ -24,18 +25,20 @@ export type UpcomingAssessmentRecord = {
 };
 
 export async function findStudent(userId: string): Promise<StudentRecord | null> {
-  const result = await pool.query<{
-    id: string;
-    name: string;
-    ra: string | null;
-    course_name: string | null;
-  }>(
-    `
+  const result = await timePerf(PERF_OP.dashboardFindStudent, () =>
+    pool.query<{
+      id: string;
+      name: string;
+      ra: string | null;
+      course_name: string | null;
+    }>(
+      `
       SELECT id, name, ra, course_name
       FROM users
       WHERE id = $1
     `,
-    [userId],
+      [userId],
+    ),
   );
   const row = result.rows[0];
 
@@ -52,12 +55,14 @@ export async function findStudent(userId: string): Promise<StudentRecord | null>
 }
 
 export async function findCurrentTerm(): Promise<TermRecord | null> {
-  const result = await pool.query<TermRecord>(
-    `
+  const result = await timePerf(PERF_OP.dashboardFindCurrentTerm, () =>
+    pool.query<TermRecord>(
+      `
       SELECT id, label
       FROM terms
       WHERE is_current = true
     `,
+    ),
   );
 
   return result.rows[0] ?? null;
@@ -67,15 +72,16 @@ export async function listUpcomingAssessments(
   userId: string,
   limit: number,
 ): Promise<UpcomingAssessmentRecord[]> {
-  const result = await pool.query<{
-    id: string;
-    name: string;
-    due_on: string;
-    discipline_id: string;
-    code: string;
-    discipline_name: string;
-  }>(
-    `
+  const result = await timePerf(PERF_OP.dashboardListUpcomingAssessments, () =>
+    pool.query<{
+      id: string;
+      name: string;
+      due_on: string;
+      discipline_id: string;
+      code: string;
+      discipline_name: string;
+    }>(
+      `
       SELECT
         a.id,
         a.name,
@@ -94,7 +100,8 @@ export async function listUpcomingAssessments(
       ORDER BY a.due_on ASC, a.sort_order ASC, a.name ASC, a.id ASC
       LIMIT $2
     `,
-    [userId, limit],
+      [userId, limit],
+    ),
   );
 
   return result.rows.map((row) => ({

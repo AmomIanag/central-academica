@@ -34,6 +34,10 @@ export function parseListenHost(raw: string | undefined, nodeEnv: string): strin
   return nodeEnv === "production" ? DEFAULT_PRODUCTION_HOST : undefined;
 }
 
+export function parsePerfLogging(raw: string | undefined): boolean {
+  return raw?.trim().toLowerCase() === "true";
+}
+
 export function parseTrustProxyHops(raw: string | undefined): number {
   if (raw === undefined || raw.trim() === "") {
     return 0;
