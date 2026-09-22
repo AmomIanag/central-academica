@@ -52,7 +52,7 @@ A associação opcional de uma task a disciplina usa FK composta `(user_id, disc
 ## Autenticação
 
 - Sessão server-side com `express-session` + `connect-pg-simple`, persistida na tabela `session`.
-- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, sem `Domain` explícito, `Secure` somente quando `NODE_ENV=production` (obrigatório no deploy, com HTTPS).
+- Cookie `central.sid`: httpOnly, `SameSite=Lax`, `Path=/`, sem `Domain` explícito, `Secure` somente quando `NODE_ENV=production` (obrigatório no deploy, com HTTPS), `Max-Age` de 24h. O TTL no PostgreSQL é o mesmo intervalo absoluto (24h desde o último `store.set`). GET autenticado não renova cookie nem sessão (`rolling=false`, `disableTouch=true`).
 - Não usar `cookie-parser` salvo necessidade concreta: `express-session` já gerencia o cookie.
 - Após login bem-sucedido, regenerar a sessão **antes** de associar `userId` e salvar a sessão antes da resposta.
 - Senhas com `scrypt` **assíncrono** via `node:crypto` (`crypto.scrypt`, formato `scrypt$N$r$p$salt$key`); comparação com `timingSafeEqual`. Login não distingue e-mail inexistente de senha incorreta (caminho dummy de KDF para conta inexistente).

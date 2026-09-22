@@ -27,7 +27,7 @@ Desktop e browser usam a **mesma** origem Vercel, a mesma API e o mesmo banco. U
 
 O Electron **não** acessa PostgreSQL, Supabase, `DATABASE_URL` nem a API no Railway. Não há SDK Supabase, API Express duplicada, Next.js embutido nem banco local.
 
-A autenticação continua a de produção: cookie `central.sid` HttpOnly, `SameSite=Lax`, CSRF por `Origin` exato da origem Vercel. CORS, cookie Domain, CSRF e rewrites da Vercel não foram alterados.
+A autenticação continua a de produção: cookie `central.sid` HttpOnly, `SameSite=Lax`, `Max-Age` 24h (igual ao TTL absoluto no PostgreSQL), CSRF por `Origin` exato da origem Vercel. CORS, cookie Domain, CSRF e rewrites da Vercel não foram alterados.
 
 ## Como executar em desenvolvimento
 
@@ -87,7 +87,7 @@ O desktop depende da aplicação web de produção. Sem rede, a janela não carr
 - `<webview>` é bloqueado; pedidos de permissão (notificações, mídia, etc.) são recusados
 - O pacote não contém `SESSION_SECRET`, `DATABASE_URL` nem credenciais Railway/Supabase
 
-A sessão usa o `session` persistente padrão do Electron (perfil em dados do aplicativo). Cookies sobrevivem à navegação normal e, em geral, à reabertura do app, sujeitos ao TTL da sessão no servidor. O app não lê, imprime nem armazena cookies por conta própria.
+A sessão usa o `session` persistente padrão do Electron (perfil em dados do aplicativo). O cookie `central.sid` tem `Max-Age` de 24h, alinhado ao TTL absoluto no servidor; sobrevive a um restart completo do app enquanto cookie e linha em `session` ainda forem válidos. O app não lê, imprime nem armazena cookies por conta própria.
 
 ## Instalador não assinado / SmartScreen
 

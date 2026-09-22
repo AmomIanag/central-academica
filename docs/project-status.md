@@ -102,7 +102,7 @@ Não usar o PostgreSQL do Windows em `5432`. Não executar `docker compose down 
 
 ## Auth e CSRF
 
-Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`, usando o pool de `DATABASE_URL` (em produção, o PostgreSQL hospedado — sem localhost). Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, sem `Domain` explícito, `Secure` só quando `NODE_ENV=production`). Helmet ligado. Login com Zod + scrypt **assíncrono** (`crypto.scrypt`, `timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
+Sessão server-side (`express-session` + `connect-pg-simple`) na tabela `session`, usando o pool de `DATABASE_URL` (em produção, o PostgreSQL hospedado — sem localhost). Cookie `central.sid` (httpOnly, `SameSite=Lax`, `Path=/`, sem `Domain` explícito, `Secure` só quando `NODE_ENV=production`, `Max-Age` 24h absoluto). A linha no PostgreSQL expira 24h após o último `store.set` (login/regenerate/save). GET autenticado não desliza cookie nem TTL (`disableTouch`, `rolling=false`). Helmet ligado. Login com Zod + scrypt **assíncrono** (`crypto.scrypt`, `timingSafeEqual`). Sessão regenerada após autenticação. Logout destrói a sessão e limpa o cookie.
 
 `POST /auth/login` tem throttling em memória do processo: limite por IP/origem e limite por e-mail normalizado. Estouro responde `429` `TOO_MANY_REQUESTS` com a mesma mensagem genérica, exista ou não a conta. O store atual **não é compartilhado entre instâncias**. **1 instância da API** no primeiro deploy; multi-instância exigirá store distribuído. Sem Redis neste pass.
 

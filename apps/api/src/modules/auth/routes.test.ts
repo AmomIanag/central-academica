@@ -7,11 +7,49 @@ import { SEED_EMAIL, SEED_PASSWORD } from "../../test/credentials";
 import { withOrigin } from "../../test/http";
 import { LOGIN_RATE_LIMIT, resetLoginRateLimiters } from "./login-rate-limit";
 import { AUTH_PASSWORD_MAX_LENGTH, loginSchema } from "./schema";
-import { SESSION_COOKIE_NAME } from "./session";
+import { SESSION_COOKIE_MAX_AGE_MS, SESSION_COOKIE_NAME } from "./session";
 
 function isSessionExpireUpdate(sql: unknown): boolean {
   const text = typeof sql === "string" ? sql : "";
   return /UPDATE\s+"session"\s+SET\s+expire/i.test(text);
+}
+
+function setCookieHeaders(response: { headers: { [key: string]: unknown } }): string[] {
+  const header = response.headers["set-cookie"];
+  if (!header) {
+    return [];
+  }
+
+  return Array.isArray(header) ? header.map(String) : [String(header)];
+}
+
+function sessionCookies(response: { headers: { [key: string]: unknown } }): string[] {
+  return setCookieHeaders(response).filter((value) =>
+    value.toLowerCase().startsWith(`${SESSION_COOKIE_NAME.toLowerCase()}=`),
+  );
+}
+
+function expectAbsoluteSessionCookie(header: string, atMs: number = Date.now()): void {
+  const lower = header.toLowerCase();
+  expect(lower).toContain("httponly");
+  expect(lower).toContain("samesite=lax");
+  expect(lower).toContain("path=/");
+  expect(lower).not.toMatch(/;\s*domain=/i);
+
+  const maxAge = /max-age=(\d+)/i.exec(header);
+  const expires = /expires=([^;]+)/i.exec(header);
+
+  if (maxAge) {
+    expect(Number(maxAge[1])).toBe(SESSION_COOKIE_MAX_AGE_MS / 1000);
+  } else {
+    expect(expires).not.toBeNull();
+  }
+
+  if (expires) {
+    const remainingMs = Date.parse(expires[1]) - atMs;
+    expect(remainingMs).toBeGreaterThan(23 * 60 * 60 * 1000);
+    expect(remainingMs).toBeLessThan(25 * 60 * 60 * 1000);
+  }
 }
 
 afterEach(async () => {
@@ -106,12 +144,11 @@ describe("auth routes", () => {
 
     const setCookie = response.headers["set-cookie"];
     const cookieHeader = Array.isArray(setCookie) ? setCookie.join(";") : String(setCookie);
+    const [sessionCookie] = sessionCookies(response);
 
+    expect(sessionCookie).toBeDefined();
+    expectAbsoluteSessionCookie(sessionCookie);
     expect(cookieHeader).toContain(`${SESSION_COOKIE_NAME}=`);
-    expect(cookieHeader).toContain("HttpOnly");
-    expect(cookieHeader.toLowerCase()).toContain("samesite=lax");
-    expect(cookieHeader.toLowerCase()).toContain("path=/");
-    expect(cookieHeader.toLowerCase()).not.toContain("max-age=");
     expect(cookieHeader).not.toContain("attacker-session");
   });
 
@@ -167,6 +204,9 @@ describe("auth routes", () => {
       expect(first.body.data.email).toBe(SEED_EMAIL);
       expect(second.body.data.email).toBe(SEED_EMAIL);
       expect(sessionUpdates).toHaveLength(0);
+      expect(sessionCookies(first)).toHaveLength(0);
+      expect(sessionCookies(dashboard)).toHaveLength(0);
+      expect(sessionCookies(second)).toHaveLength(0);
     } finally {
       querySpy.mockRestore();
     }
@@ -191,6 +231,7 @@ describe("auth routes", () => {
     expect(logout.status).toBe(200);
     expect(logout.body).toEqual({ data: { success: true } });
     expect(cookieHeader).toContain(`${SESSION_COOKIE_NAME}=`);
+    expect(cookieHeader.toLowerCase()).toMatch(/max-age=0|expires=/);
     expect(me.status).toBe(401);
     expect(me.body.error.code).toBe("UNAUTHENTICATED");
 

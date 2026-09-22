@@ -9,9 +9,10 @@ const PgSession = connectPgSimple(session);
 
 export const SESSION_COOKIE_NAME = "central.sid";
 
-// connect-pg-simple default when cookie.expires is unset. After disableTouch this is
-// an absolute DB TTL from the last store.set (login/regenerate/save), not a sliding window.
+// Absolute 24h from last store.set (login/regenerate/save). disableTouch prevents sliding
+// DB TTL. Cookie maxAge matches that window; rolling is off so GET does not extend Set-Cookie.
 export const SESSION_TTL_SECONDS = 60 * 60 * 24;
+export const SESSION_COOKIE_MAX_AGE_MS = SESSION_TTL_SECONDS * 1000;
 export const SESSION_DISABLE_TOUCH = true;
 
 export function buildSessionCookieOptions(nodeEnv: string): CookieOptions {
@@ -20,6 +21,7 @@ export function buildSessionCookieOptions(nodeEnv: string): CookieOptions {
     sameSite: "lax",
     secure: nodeEnv === "production",
     path: "/",
+    maxAge: SESSION_COOKIE_MAX_AGE_MS,
   };
 }
 
@@ -44,6 +46,7 @@ export const sessionMiddleware = wrapTimedMiddleware(
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: false,
     cookie: sessionCookieOptions,
   }),
 );
