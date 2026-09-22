@@ -9,18 +9,29 @@ const PgSession = connectPgSimple(session);
 
 export const SESSION_COOKIE_NAME = "central.sid";
 
-export const sessionCookieOptions: CookieOptions = {
-  httpOnly: true,
-  sameSite: "lax",
-  secure: env.nodeEnv === "production",
-  path: "/",
-};
+// connect-pg-simple default when cookie.expires is unset. After disableTouch this is
+// an absolute DB TTL from the last store.set (login/regenerate/save), not a sliding window.
+export const SESSION_TTL_SECONDS = 60 * 60 * 24;
+export const SESSION_DISABLE_TOUCH = true;
 
-const sessionStore = new PgSession({
+export function buildSessionCookieOptions(nodeEnv: string): CookieOptions {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: nodeEnv === "production",
+    path: "/",
+  };
+}
+
+export const sessionCookieOptions = buildSessionCookieOptions(env.nodeEnv);
+
+export const sessionStore = new PgSession({
   pool,
   tableName: "session",
   createTableIfMissing: false,
   pruneSessionInterval: env.nodeEnv === "test" ? false : 60 * 15,
+  ttl: SESSION_TTL_SECONDS,
+  disableTouch: SESSION_DISABLE_TOUCH,
 });
 
 instrumentSessionStore(sessionStore);

@@ -1,5 +1,11 @@
 import type { PoolConfig } from "pg";
 
+export const POSTGRES_POOL_MAX = 10;
+export const POSTGRES_POOL_MIN = 3;
+export const POSTGRES_POOL_IDLE_TIMEOUT_MS = 60_000;
+export const POSTGRES_POOL_CONNECTION_TIMEOUT_MS = 10_000;
+export const POSTGRES_POOL_KEEPALIVE_INITIAL_DELAY_MS = 10_000;
+
 export type PostgresSslConfig = {
   rejectUnauthorized: true;
   ca?: string;
@@ -88,6 +94,12 @@ export function postgresPoolConfig(
 
   return {
     connectionString: stripSslSearchParams(connectionString),
+    max: POSTGRES_POOL_MAX,
+    min: nodeEnv === "test" ? 0 : POSTGRES_POOL_MIN,
+    idleTimeoutMillis: POSTGRES_POOL_IDLE_TIMEOUT_MS,
+    connectionTimeoutMillis: POSTGRES_POOL_CONNECTION_TIMEOUT_MS,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: POSTGRES_POOL_KEEPALIVE_INITIAL_DELAY_MS,
     ...(ssl ? { ssl } : {}),
   };
 }

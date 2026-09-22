@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeDatabaseSslCa,
   postgresPoolConfig,
+  POSTGRES_POOL_CONNECTION_TIMEOUT_MS,
+  POSTGRES_POOL_IDLE_TIMEOUT_MS,
+  POSTGRES_POOL_KEEPALIVE_INITIAL_DELAY_MS,
+  POSTGRES_POOL_MAX,
+  POSTGRES_POOL_MIN,
   resolvePostgresSsl,
 } from "./pool-config";
 
@@ -109,5 +114,25 @@ describe("postgresPoolConfig", () => {
     expect(withCa.ssl).not.toBe(false);
     expect(withoutCa.ssl).not.toBe(false);
     expect(withoutCa.ssl).toEqual({ rejectUnauthorized: true });
+  });
+
+  it("sets a small explicit pool that keeps a few warm clients in production", () => {
+    const production = postgresPoolConfig(HOSTED_SSL_URL, "production");
+    const development = postgresPoolConfig(LOCAL_URL, "development");
+    const test = postgresPoolConfig(LOCAL_URL, "test");
+
+    expect(production).toMatchObject({
+      max: POSTGRES_POOL_MAX,
+      min: POSTGRES_POOL_MIN,
+      idleTimeoutMillis: POSTGRES_POOL_IDLE_TIMEOUT_MS,
+      connectionTimeoutMillis: POSTGRES_POOL_CONNECTION_TIMEOUT_MS,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: POSTGRES_POOL_KEEPALIVE_INITIAL_DELAY_MS,
+    });
+    expect(development.min).toBe(POSTGRES_POOL_MIN);
+    expect(test.min).toBe(0);
+    expect(POSTGRES_POOL_MAX).toBe(10);
+    expect(POSTGRES_POOL_MIN).toBe(3);
+    expect(POSTGRES_POOL_IDLE_TIMEOUT_MS).toBe(60_000);
   });
 });

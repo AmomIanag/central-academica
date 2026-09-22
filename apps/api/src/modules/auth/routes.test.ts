@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { app } from "../../app";
 import { JSON_BODY_LIMIT_BYTES } from "../../config/http";
@@ -8,6 +8,11 @@ import { withOrigin } from "../../test/http";
 import { LOGIN_RATE_LIMIT, resetLoginRateLimiters } from "./login-rate-limit";
 import { AUTH_PASSWORD_MAX_LENGTH, loginSchema } from "./schema";
 import { SESSION_COOKIE_NAME } from "./session";
+
+function isSessionExpireUpdate(sql: unknown): boolean {
+  const text = typeof sql === "string" ? sql : "";
+  return /UPDATE\s+"session"\s+SET\s+expire/i.test(text);
+}
 
 afterEach(async () => {
   await pool.query("DELETE FROM session");
@@ -106,6 +111,7 @@ describe("auth routes", () => {
     expect(cookieHeader).toContain("HttpOnly");
     expect(cookieHeader.toLowerCase()).toContain("samesite=lax");
     expect(cookieHeader.toLowerCase()).toContain("path=/");
+    expect(cookieHeader.toLowerCase()).not.toContain("max-age=");
     expect(cookieHeader).not.toContain("attacker-session");
   });
 
@@ -128,6 +134,48 @@ describe("auth routes", () => {
     expect(me.body.data).not.toHaveProperty("passwordHash");
   });
 
+  it("persists the session across authenticated GET requests without renewing store TTL", async () => {
+    const agent = request.agent(app);
+    await withOrigin(agent.post("/auth/login")).send({
+      email: SEED_EMAIL,
+      password: SEED_PASSWORD,
+    });
+
+    const stored = await pool.query<{ expire: Date; seconds: string }>(
+      `
+        SELECT expire, EXTRACT(EPOCH FROM (expire - CURRENT_TIMESTAMP))::int AS seconds
+        FROM session
+      `,
+    );
+    expect(stored.rows).toHaveLength(1);
+
+    const expireAtLogin = stored.rows[0].expire.getTime();
+    expect(Number(stored.rows[0].seconds)).toBeGreaterThan(23 * 60 * 60);
+    expect(Number(stored.rows[0].seconds)).toBeLessThan(25 * 60 * 60);
+
+    const querySpy = vi.spyOn(pool, "query");
+
+    try {
+      const first = await agent.get("/auth/me");
+      const dashboard = await agent.get("/me/dashboard");
+      const second = await agent.get("/auth/me");
+      const sessionUpdates = querySpy.mock.calls.filter(([sql]) => isSessionExpireUpdate(sql));
+
+      expect(first.status).toBe(200);
+      expect(dashboard.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.body.data.email).toBe(SEED_EMAIL);
+      expect(second.body.data.email).toBe(SEED_EMAIL);
+      expect(sessionUpdates).toHaveLength(0);
+    } finally {
+      querySpy.mockRestore();
+    }
+
+    const afterGets = await pool.query<{ expire: Date }>("SELECT expire FROM session");
+    expect(afterGets.rows).toHaveLength(1);
+    expect(afterGets.rows[0].expire.getTime()).toBe(expireAtLogin);
+  });
+
   it("destroys the session and clears the cookie on logout", async () => {
     const agent = request.agent(app);
     await withOrigin(agent.post("/auth/login")).send({
@@ -145,6 +193,9 @@ describe("auth routes", () => {
     expect(cookieHeader).toContain(`${SESSION_COOKIE_NAME}=`);
     expect(me.status).toBe(401);
     expect(me.body.error.code).toBe("UNAUTHENTICATED");
+
+    const remaining = await pool.query("SELECT sid FROM session");
+    expect(remaining.rows).toHaveLength(0);
   });
 });
 

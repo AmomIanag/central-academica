@@ -174,9 +174,12 @@ async function resolveProfessor(userId: string, professorName: string, db?: Quer
   return insertProfessor(professorName, db);
 }
 
+export function summarizeDisciplines(records: DisciplineRecord[]): DisciplineSummary[] {
+  return records.map(toSummary);
+}
+
 export async function listDisciplines(userId: string): Promise<DisciplineSummary[]> {
-  const disciplines = await listCurrentEnrollments(userId);
-  return disciplines.map(toSummary);
+  return summarizeDisciplines(await listCurrentEnrollments(userId));
 }
 
 export async function getDiscipline(userId: string, disciplineId: string): Promise<DisciplineDetail | null> {

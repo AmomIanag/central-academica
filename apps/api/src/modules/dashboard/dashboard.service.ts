@@ -1,7 +1,7 @@
 import { PERF_OP, timePerf } from "../../lib/perf";
 import { computeAnnualResult, roundAverage } from "../academic/grades";
 import { listCurrentEnrollments } from "../disciplines/disciplines.repository";
-import { listDisciplines } from "../disciplines/disciplines.service";
+import { summarizeDisciplines } from "../disciplines/disciplines.service";
 import {
   findCurrentTerm,
   findStudent,
@@ -17,17 +17,17 @@ export async function getDashboard(userId: string) {
     return null;
   }
 
-  const [term, disciplines, records, upcomingAssessments] = await timePerf(
+  const [term, records, upcomingAssessments] = await timePerf(
     PERF_OP.dashboardParallelQueries,
     () =>
       Promise.all([
         findCurrentTerm(),
-        listDisciplines(userId),
         listCurrentEnrollments(userId),
         listUpcomingAssessments(userId, UPCOMING_ASSESSMENTS_LIMIT),
       ]),
   );
 
+  const disciplines = summarizeDisciplines(records);
   const annualAverages = records
     .map((record) =>
       computeAnnualResult(
