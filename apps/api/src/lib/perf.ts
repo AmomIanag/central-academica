@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import type { Pool, PoolClient } from "pg";
-import type { SessionData, Store } from "express-session";
+import type { Store } from "express-session";
 import { parsePerfLogging } from "../config/runtime";
 
 export const PERF_LOG_PREFIX = "[PERF]";
@@ -11,6 +11,9 @@ export const PERF_OP = {
   requestTotal: "request.total",
   sessionMiddleware: "session.middleware",
   sessionStoreGet: "session.store.get",
+  sessionStoreTouch: "session.store.touch",
+  sessionStoreSet: "session.store.set",
+  sessionStoreDestroy: "session.store.destroy",
   poolAcquire: "db.pool.acquire",
   authMeFindUser: "auth.me.findUser",
   dashboardHandler: "dashboard.handler",
@@ -112,8 +115,11 @@ export function wrapTimedMiddleware(operation: PerfOperation, middleware: Reques
 
 export function instrumentSessionStore(store: Store): void {
   const originalGet = store.get.bind(store);
+  const originalSet = store.set.bind(store);
+  const originalDestroy = store.destroy.bind(store);
+  const originalTouch = store.touch?.bind(store);
 
-  store.get = (sid: string, callback: (error: Error | null, session?: SessionData | null) => void) => {
+  store.get = (sid, callback) => {
     const context = getPerfContext();
     if (!isPerfLoggingEnabled() || !context) {
       originalGet(sid, callback);
@@ -125,6 +131,52 @@ export function instrumentSessionStore(store: Store): void {
       logPerf(PERF_OP.sessionStoreGet, performance.now() - startedAt, context);
       callback(error, session);
     });
+  };
+
+  store.set = (sid, session, callback) => {
+    const context = getPerfContext();
+    if (!isPerfLoggingEnabled() || !context) {
+      originalSet(sid, session, callback);
+      return;
+    }
+
+    const startedAt = performance.now();
+    originalSet(sid, session, (error) => {
+      logPerf(PERF_OP.sessionStoreSet, performance.now() - startedAt, context);
+      callback?.(error);
+    });
+  };
+
+  store.destroy = (sid, callback) => {
+    const context = getPerfContext();
+    if (!isPerfLoggingEnabled() || !context) {
+      originalDestroy(sid, callback);
+      return;
+    }
+
+    const startedAt = performance.now();
+    originalDestroy(sid, (error) => {
+      logPerf(PERF_OP.sessionStoreDestroy, performance.now() - startedAt, context);
+      callback?.(error);
+    });
+  };
+
+  if (!originalTouch) {
+    return;
+  }
+
+  store.touch = (sid, session, callback) => {
+    const context = getPerfContext();
+    if (!isPerfLoggingEnabled() || !context) {
+      originalTouch(sid, session, callback);
+      return;
+    }
+
+    const startedAt = performance.now();
+    originalTouch(sid, session, ((error?: unknown) => {
+      logPerf(PERF_OP.sessionStoreTouch, performance.now() - startedAt, context);
+      (callback as ((error?: unknown) => void) | undefined)?.(error);
+    }) as () => void);
   };
 }
 

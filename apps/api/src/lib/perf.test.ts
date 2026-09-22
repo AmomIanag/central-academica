@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SessionData, Store } from "express-session";
 import {
   formatPerfLog,
+  instrumentSessionStore,
   isInstrumentedPerfRoute,
   logPerf,
   PERF_LOG_PREFIX,
@@ -84,5 +86,52 @@ describe("timePerf", () => {
     logPerf(PERF_OP.requestTotal, 12);
 
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("instrumentSessionStore", () => {
+  const secretSid = "sid-must-never-appear-in-logs";
+
+  function mockStore(): Store {
+    return {
+      get: (_sid: string, callback: (error: Error | null, session?: SessionData | null) => void) => {
+        callback(null, { cookie: {} } as SessionData);
+      },
+      set: (_sid: string, _session: SessionData, callback?: (error?: unknown) => void) => {
+        callback?.();
+      },
+      destroy: (_sid: string, callback?: (error?: unknown) => void) => {
+        callback?.();
+      },
+      touch: (_sid: string, _session: SessionData, callback?: () => void) => {
+        callback?.();
+      },
+    } as Store;
+  }
+
+  it("logs touch, set and destroy without session ids or session payloads", () => {
+    process.env.PERF_LOGGING = "true";
+    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const store = mockStore();
+    instrumentSessionStore(store);
+
+    runWithPerfContext({ route: "/auth/me", requestId: SAFE_REQUEST_ID }, () => {
+      store.touch?.(secretSid, { cookie: {} } as SessionData, () => undefined);
+      store.set(secretSid, { cookie: {} } as SessionData, () => undefined);
+      store.destroy(secretSid, () => undefined);
+    });
+
+    const lines = spy.mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatch(
+      /^\[PERF\] route=\/auth\/me op=session\.store\.touch ms=\d+ requestId=req_0123456789abcdef$/,
+    );
+    expect(lines[1]).toMatch(
+      /^\[PERF\] route=\/auth\/me op=session\.store\.set ms=\d+ requestId=req_0123456789abcdef$/,
+    );
+    expect(lines[2]).toMatch(
+      /^\[PERF\] route=\/auth\/me op=session\.store\.destroy ms=\d+ requestId=req_0123456789abcdef$/,
+    );
+    expect(lines.join("\n")).not.toContain(secretSid);
   });
 });
