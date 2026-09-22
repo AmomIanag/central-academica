@@ -4,10 +4,11 @@ Fonte de verdade das decisões aprovadas na Etapa 1. Atualize este arquivo quand
 
 ## Forma geral
 
-Monorepo npm workspaces com duas aplicações:
+Monorepo npm workspaces com três aplicações:
 
 - `apps/web` — Next.js (App Router) + TypeScript + React. Interface do aluno.
 - `apps/api` — Express + TypeScript. Única camada de negócio e único acesso ao banco.
+- `apps/desktop` — Electron (Windows). Wrapper da origem web de produção; sem banco, sem API e sem UI própria.
 - PostgreSQL — fonte de verdade dos dados.
 
 O Next.js **não** acessa o PostgreSQL e **não** expõe rotas de negócio. O frontend comunica-se com a API via HTTP JSON.
@@ -18,13 +19,15 @@ Aluno → Next.js → HTTP + cookie de sessão → Express → PostgreSQL
 
 Desenvolvimento: `localhost:3000` → `localhost:3001` → Docker `127.0.0.1:5433`.
 
-Produção-alvo (Deployment Prep; infra ainda não criada):
+Produção (browser ou desktop):
 
 ```
-Browser → Vercel (Next.js, origem do cookie)
-            rewrite /api/:path* → Railway Express
-                                    → Supabase PostgreSQL (somente banco)
+Browser ou Electron → Vercel (Next.js, origem do cookie)
+                        rewrite /api/:path* → Railway Express
+                                                → Supabase PostgreSQL (somente banco)
 ```
+
+O desktop V1 só abre `https://central-academica-web-one.vercel.app` numa `BrowserWindow` sandboxed. Não conecta ao Railway, ao Supabase nem a `DATABASE_URL`. Detalhes: [desktop.md](./desktop.md).
 
 Supabase não substitui a API. Sem Auth, PostgREST ou SDK no frontend. É um monólito modular em duas apps. Sem microserviços, Redis, GraphQL, NestJS ou ORM na V1/V2/V2.2.
 
@@ -157,7 +160,7 @@ Sidebar: Dashboard, Tarefas, Agenda e Notas.
 - API em `http://localhost:3001` (`PORT` padrão 3001; em produção `PORT` vem da plataforma e o bind é `0.0.0.0`).
 - Web em `http://localhost:3000`
 - `.env` por app, a partir de `.env.example`. Sem `.env.example` redundante na raiz.
-- Scripts: `npm run dev:api`, `npm run dev:web`, `npm run db:migrate`, `npm run db:seed`, `npm run db:test:prepare`, `npm run build:api`, `npm run build:web`. Sem `concurrently` até ser pedido.
+- Scripts: `npm run dev:api`, `npm run dev:web`, `npm run dev:desktop`, `npm run db:migrate`, `npm run db:seed`, `npm run db:test:prepare`, `npm run build:api`, `npm run build:web`, `npm run dist:desktop`. Sem `concurrently` até ser pedido.
 - Node **24.x** (`.nvmrc`).
 
 Git é controlado manualmente. O agente não deve executar commit, push, branch, reset, clean, add, checkout ou switch.
@@ -176,6 +179,7 @@ Git é controlado manualmente. O agente não deve executar commit, push, branch,
 10. Gestão acadêmica editável (disciplinas, notas CP/GS, presença) — **V2.2 concluída**
 11. Security hardening — **concluído** (Postgres em loopback, throttling de login, scrypt assíncrono, limites de recurso, Vitest canônico)
 12. Deployment Prep — **concluído** (runtime de produção, migrate/bootstrap explícitos, proxy `/api`, checklist). Infraestrutura real **não** foi criada.
+13. Desktop V1 — **concluído** (Electron Windows carrega a origem Vercel de produção; mesma conta/dados da web). Sem auto-update, bandeja, modo offline ou ícone `.ico` próprio.
 
 Não antecipar etapa seguinte. Cada etapa termina em estado verificável.
 

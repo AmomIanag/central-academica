@@ -1,0 +1,75 @@
+{
+  "name": "desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Aplicativo desktop da Central Acadêmica FIAP",
+  "author": "Central Acadêmica FIAP",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "npm run build && electron .",
+    "smoke": "npm run build && electron . --smoke-test",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "tsc && node --test dist/config.test.js dist/urls.test.js",
+    "dist": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "package": "npm run dist"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "electron": "44.4.3",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.9.2"
+  },
+  "build": {
+    "appId": "br.fiap.central-academica",
+    "productName": "Central Acadêmica",
+    "copyright": "Central Acadêmica FIAP",
+    "asar": true,
+    "npmRebuild": false,
+    "electronVersion": "44.4.3",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/**/*.test.js",
+      "!dist/**/*.test.js.map",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Central Acadêmica",
+      "uninstallDisplayName": "Central Acadêmica"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    }
+  }
+}

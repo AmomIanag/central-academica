@@ -23,6 +23,7 @@ _Adicione aqui um print da interface (login, dashboard, tarefas ou agenda)._
 
 - **web:** Next.js (App Router) + React + TypeScript + Tailwind
 - **api:** Node.js + Express + TypeScript
+- **desktop:** Electron (Windows) carregando a web de produção
 - **banco:** PostgreSQL via Docker Compose (`pg` + SQL; migrations `node-pg-migrate`)
 
 ## Arquitetura
@@ -33,15 +34,16 @@ Aluno → Next.js → HTTP + cookie de sessão → Express → PostgreSQL
 
 O frontend não acessa o banco. A API Express é a única camada de negócio.
 
-Deploy-alvo (ainda não provisionado): browser na Vercel, com rewrite same-origin `/api` → API no Railway → PostgreSQL no Supabase (somente banco). Desenvolvimento local continua `localhost:3000` → `localhost:3001` → Docker `localhost:5433`.
+Produção: browser ou Electron na origem Vercel, com rewrite same-origin `/api` → API no Railway → PostgreSQL no Supabase (somente banco). O desktop V1 é um wrapper dessa origem; detalhes em [docs/desktop.md](docs/desktop.md). Desenvolvimento local da web continua `localhost:3000` → `localhost:3001` → Docker `localhost:5433`.
 
 ## Estrutura
 
 ```
 central-academica-fiap/
-  apps/web     Next.js (frontend)
-  apps/api     Express (API)
-  docs/        decisões de arquitetura e status
+  apps/web       Next.js (frontend)
+  apps/api       Express (API)
+  apps/desktop   Electron (Windows; carrega a web de produção)
+  docs/          decisões de arquitetura e status
 ```
 
 ## Requisitos
@@ -77,12 +79,12 @@ Copy-Item apps/web/.env.example apps/web/.env
 
 Os arquivos `.env` não devem ser commitados.
 
-| App | Variáveis |
-|---|---|
-| API (dev) | `PORT`, `DATABASE_URL`, `TEST_DATABASE_URL`, `CORS_ORIGIN`, `SESSION_SECRET` (mínimo 32 caracteres), `TRUST_PROXY_HOPS` (padrão `0`) |
+| App            | Variáveis                                                                                                                                                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API (dev)      | `PORT`, `DATABASE_URL`, `TEST_DATABASE_URL`, `CORS_ORIGIN`, `SESSION_SECRET` (mínimo 32 caracteres), `TRUST_PROXY_HOPS` (padrão `0`)                                                                                              |
 | API (produção) | `NODE_ENV=production`, `PORT` (plataforma), `DATABASE_URL`, `SESSION_SECRET`, `CORS_ORIGIN` (origem HTTPS do frontend), `TRUST_PROXY_HOPS` (só depois de validar o Railway), `DATABASE_SSL_CA` (opcional, PEM da CA; server-side) |
-| web (dev) | `NEXT_PUBLIC_API_URL=http://localhost:3001` |
-| web (produção) | `NEXT_PUBLIC_API_URL=/api`, `API_PROXY_TARGET` (origem da API; server-side) |
+| web (dev)      | `NEXT_PUBLIC_API_URL=http://localhost:3001`                                                                                                                                                                                       |
+| web (produção) | `NEXT_PUBLIC_API_URL=/api`, `API_PROXY_TARGET` (origem da API; server-side)                                                                                                                                                       |
 
 `DATABASE_URL` aponta para o database de desenvolvimento (`central_academica`).  
 `TEST_DATABASE_URL` aponta para o database de testes (`central_academica_test`) no **mesmo** PostgreSQL Docker e **não** é usado em produção.
@@ -164,11 +166,17 @@ npm run dev:api
 npm run dev:web
 ```
 
-| Serviço | Endereço |
-|---|---|
-| web | [http://localhost:3000](http://localhost:3000) (`/login`, `/dashboard`, `/tarefas`, `/agenda`, `/notas`) |
-| api | [http://localhost:3001](http://localhost:3001) |
-| PostgreSQL | `localhost:5433` |
+O desktop (requer internet; carrega a web de produção, não o Next.js local):
+
+```bash
+npm run dev:desktop
+```
+
+| Serviço    | Endereço                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
+| web        | [http://localhost:3000](http://localhost:3000) (`/login`, `/dashboard`, `/tarefas`, `/agenda`, `/notas`) |
+| api        | [http://localhost:3001](http://localhost:3001)                                                           |
+| PostgreSQL | `localhost:5433`                                                                                         |
 
 Mutações HTTP (login, logout, criar/editar tarefas) exigem header `Origin` igual a `CORS_ORIGIN`. O navegador envia isso automaticamente. Em curl:
 
@@ -198,20 +206,22 @@ Se o banco estiver inacessível, a API responde `503` e `database` vem como `unr
 
 ## Scripts principais
 
-| Script | Função |
-|---|---|
-| `npm run dev:api` | API em watch (`localhost:3001`) |
-| `npm run dev:web` | frontend Next.js (`localhost:3000`) |
-| `npm run build:api` / `npm run start:api` | build e start da API (deploy) |
-| `npm run build:web` / `npm run start:web` | build e start local do frontend |
-| `npm run db:migrate` | migrations no PostgreSQL Docker de desenvolvimento |
-| `npm run db:migrate:prod` | migrations de produção (`MIGRATION_DATABASE_URL` + `ALLOW_PRODUCTION_MIGRATIONS=true`) |
-| `npm run db:seed` | seed fictício **somente de desenvolvimento** |
-| `npm run db:bootstrap-user` | cria o aluno inicial de produção (explícito; não é cadastro) |
-| `npm run db:test:prepare` | cria/migra/seed o database `central_academica_test` |
-| `npm test` | testes da API (com database de teste) e do frontend |
-| `npm run lint` | ESLint nas duas apps |
-| `npm run typecheck` | TypeScript nas duas apps |
+| Script                                           | Função                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `npm run dev:api`                                | API em watch (`localhost:3001`)                                                        |
+| `npm run dev:web`                                | frontend Next.js (`localhost:3000`)                                                    |
+| `npm run dev:desktop`                            | Electron apontando para a web de produção                                              |
+| `npm run build:api` / `npm run start:api`        | build e start da API (deploy)                                                          |
+| `npm run build:web` / `npm run start:web`        | build e start local do frontend                                                        |
+| `npm run build:desktop` / `npm run dist:desktop` | compila o Electron / gera o instalador NSIS                                            |
+| `npm run db:migrate`                             | migrations no PostgreSQL Docker de desenvolvimento                                     |
+| `npm run db:migrate:prod`                        | migrations de produção (`MIGRATION_DATABASE_URL` + `ALLOW_PRODUCTION_MIGRATIONS=true`) |
+| `npm run db:seed`                                | seed fictício **somente de desenvolvimento**                                           |
+| `npm run db:bootstrap-user`                      | cria o aluno inicial de produção (explícito; não é cadastro)                           |
+| `npm run db:test:prepare`                        | cria/migra/seed o database `central_academica_test`                                    |
+| `npm test`                                       | testes da API (com database de teste) e do frontend                                    |
+| `npm run lint`                                   | ESLint nas duas apps                                                                   |
+| `npm run typecheck`                              | TypeScript nas duas apps                                                               |
 
 ## Testes
 
@@ -264,6 +274,8 @@ Sucesso: `{ "data": ... }`. Erro: `{ "error": { "code", "message", "details?" } 
 **Security hardening concluído.** Porta PostgreSQL de desenvolvimento em loopback, throttling de login, scrypt assíncrono, limites de payload/senha e guarda de placeholders de produção. Sem mudança de funcionalidade do produto.
 
 **Deployment Prep concluído.** Contrato de runtime de produção, PostgreSQL hospedado (TLS via URL), migrate/bootstrap explícitos, proxy `/api` na Vercel, `TRUST_PROXY_HOPS` numérico e checklist em [docs/deployment.md](docs/deployment.md). Nenhuma infraestrutura de produção foi criada.
+
+**Desktop V1.** Wrapper Electron da origem Vercel de produção (mesma conta e mesmos dados da web). Sem banco local e sem API duplicada. Ver [docs/desktop.md](docs/desktop.md).
 
 ## Roadmap
 

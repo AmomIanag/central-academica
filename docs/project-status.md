@@ -1,7 +1,7 @@
 # Status do projeto — Central Acadêmica FIAP
 
-Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard). **V2.2 concluída** (gestão acadêmica editável). **Security hardening concluído** (exposição local do Postgres, throttling de login, scrypt assíncrono). **Deployment Prep concluído** (contrato de produção, migrate/bootstrap, proxy `/api`; sem infra criada).  
-Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md) e [deployment.md](./deployment.md).
+Handoff operacional. **V1 concluída** (Etapas 1–8). **V2 concluída** (tarefas, agenda e resumo no dashboard). **V2.2 concluída** (gestão acadêmica editável). **Security hardening concluído** (exposição local do Postgres, throttling de login, scrypt assíncrono). **Deployment Prep concluído** (contrato de produção, migrate/bootstrap, proxy `/api`; sem infra criada). **Desktop V1** (Electron Windows apontando para a web de produção).  
+Antes de implementar qualquer coisa, leia também [architecture.md](./architecture.md), [deployment.md](./deployment.md) e [desktop.md](./desktop.md).
 
 ## Objetivo
 
@@ -13,9 +13,10 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 
 ## Stack
 
-- Monorepo **npm workspaces** (`apps/web`, `apps/api`)
+- Monorepo **npm workspaces** (`apps/web`, `apps/api`, `apps/desktop`)
 - **web:** Next.js (App Router) + React + TypeScript + Tailwind
 - **api:** Node.js + Express + TypeScript
+- **desktop:** Electron + TypeScript (processo principal) + electron-builder (NSIS x64)
 - **banco:** PostgreSQL via Docker Compose; driver `pg` + SQL; migrations `node-pg-migrate`
 - Sem ORM. Sem `packages/` na V1/V2/V2.2.
 
@@ -32,10 +33,10 @@ Aplicação web full-stack para centralizar informações acadêmicas do aluno F
 
 ## Infraestrutura local
 
-| Serviço | Endereço |
-|---|---|
-| web | `http://localhost:3000` |
-| api | `http://localhost:3001` |
+| Serviço                               | Endereço                            |
+| ------------------------------------- | ----------------------------------- |
+| web                                   | `http://localhost:3000`             |
+| api                                   | `http://localhost:3001`             |
 | PostgreSQL **deste projeto** (Docker) | `127.0.0.1:5433` → container `5432` |
 
 O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado, migrado nem alterado**.  
@@ -46,24 +47,25 @@ O PostgreSQL 18 instalado no Windows em `localhost:5432` **não deve ser parado,
 
 `TRUST_PROXY_HOPS` é um inteiro (padrão `0`). Não definir automaticamente como `1`. O valor correto só pode ser escolhido na validação real do Railway. `trust proxy = true` genérico não é usado.
 
-Produção-alvo: Vercel (web, rewrite `/api`) → Railway (API) → Supabase PostgreSQL (somente banco). Docker Compose não vai para produção. Checklist: [deployment.md](./deployment.md).
+Produção: Vercel (web, rewrite `/api`) → Railway (API) → Supabase PostgreSQL (somente banco). O desktop V1 carrega a origem Vercel; não fala com Railway/Supabase diretamente. Docker Compose não vai para produção. Checklist web/API: [deployment.md](./deployment.md). Desktop: [desktop.md](./desktop.md).
 
 ## Etapas
 
-| Etapa | Status |
-|---|---|
-| 1. Planejamento e arquitetura | Concluída |
-| 2. Setup | Concluída |
-| 3. Banco e modelo acadêmico | Concluída |
-| 4. Autenticação e segurança | Concluída |
-| 5. API acadêmica | Concluída |
-| 6. Frontend e identidade visual | Concluída |
-| 7. Integração ponta a ponta | Concluída |
-| 8. Polimento, testes e entrega | **Concluída — V1 fechada** |
-| V2. Tarefas, agenda e dashboard | **Concluída** |
-| V2.2. Gestão acadêmica | **Concluída** |
-| Security hardening | **Concluído** |
-| Deployment Prep | **Concluído** — sem deploy real |
+| Etapa                           | Status                                                      |
+| ------------------------------- | ----------------------------------------------------------- |
+| 1. Planejamento e arquitetura   | Concluída                                                   |
+| 2. Setup                        | Concluída                                                   |
+| 3. Banco e modelo acadêmico     | Concluída                                                   |
+| 4. Autenticação e segurança     | Concluída                                                   |
+| 5. API acadêmica                | Concluída                                                   |
+| 6. Frontend e identidade visual | Concluída                                                   |
+| 7. Integração ponta a ponta     | Concluída                                                   |
+| 8. Polimento, testes e entrega  | **Concluída — V1 fechada**                                  |
+| V2. Tarefas, agenda e dashboard | **Concluída**                                               |
+| V2.2. Gestão acadêmica          | **Concluída**                                               |
+| Security hardening              | **Concluído**                                               |
+| Deployment Prep                 | **Concluído** — sem deploy real                             |
+| Desktop V1                      | **Concluído** — Electron Windows, mesma origem/dados da web |
 
 ## Banco
 
@@ -155,9 +157,11 @@ npm run db:seed
 npm run db:test:prepare
 npm run dev:api
 npm run dev:web
+npm run dev:desktop
 npm test
 npm run build:api
 npm run build:web
+npm run dist:desktop
 ```
 
 Verificar: `docker compose ps` (healthy, `127.0.0.1:5433->5432`), `curl http://localhost:3001/health`, `npm run lint`, `npm run typecheck`.
